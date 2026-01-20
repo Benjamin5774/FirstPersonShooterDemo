@@ -18,6 +18,7 @@ void UHealthComponent::BeginPlay()
 	Super::BeginPlay();
 
 	Health = MaxHealth;
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorController)
@@ -33,6 +34,7 @@ void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorControll
 	}
 
 	Health = FMath::Clamp(Health - Amount, 0.0f, MaxHealth);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	if (Health <= 0.0f)
 	{
@@ -42,7 +44,7 @@ void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorControll
 
 void UHealthComponent::OnRep_Health(float OldHealth)
 {
-	// Placeholder for hit/death UI feedback.
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 void UHealthComponent::HandleDeath(AController* InstigatorController)

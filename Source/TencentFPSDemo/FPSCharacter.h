@@ -18,6 +18,8 @@ public:
 	AFPSCharacter();
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	UFUNCTION(BlueprintCallable, Category = "Components")
+	UHealthComponent* GetHealthComponent() const { return HealthComponent; }
 
 protected:
 	virtual void BeginPlay() override;
