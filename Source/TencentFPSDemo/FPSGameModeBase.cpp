@@ -1,11 +1,9 @@
 #include "FPSGameModeBase.h"
-#include "FPSCharacter.h"
 #include "FPSPlayerState.h"
 #include "GameFramework/GameStateBase.h"
 
 AFPSGameModeBase::AFPSGameModeBase()
 {
-	DefaultPawnClass = AFPSCharacter::StaticClass();
 	PlayerStateClass = AFPSPlayerState::StaticClass();
 
 	MaxPlayers = 4;
