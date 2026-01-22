@@ -3,9 +3,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "FPSGameModeBase.generated.h"
-
 class APawn;
 class AWeaponBase;
+class APlayerStart;
 
 UCLASS()
 class TENCENTFPSDEMO_API AFPSGameModeBase : public AGameModeBase
