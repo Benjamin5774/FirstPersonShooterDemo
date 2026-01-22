@@ -1,4 +1,6 @@
 #include "FPSGameModeBase.h"
+#include "FPSGameState.h"
+#include "FPSHUD.h"
 #include "FPSPlayerState.h"
 #include "EngineUtils.h"
 #include "Components/ActorComponent.h"
@@ -6,18 +8,42 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerState.h"
+#include "Kismet/GameplayStatics.h"
 #include "WeaponBase.h"
 #include "UObject/UnrealType.h"
 
 AFPSGameModeBase::AFPSGameModeBase()
 {
 	PlayerStateClass = AFPSPlayerState::StaticClass();
+	GameStateClass = AFPSGameState::StaticClass();
+	HUDClass = AFPSHUD::StaticClass();
 
 	MaxPlayers = 4;
 	TeamCount = 2;
 	RespawnDelay = 0.1f;
 	bKeepWeaponOnRespawn = false;
 	SpawnCheckRadius = 100.0f;
+	MatchTimeSeconds = 300;
+}
+
+void AFPSGameModeBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (AFPSGameState* FPSGameState = GetFPSGameState())
+	{
+		FPSGameState->RemainingTime = MatchTimeSeconds;
+		FPSGameState->TeamAScore = 0;
+		FPSGameState->TeamBScore = 0;
+		FPSGameState->bMatchOver = false;
+		FPSGameState->WinningTeamId = -1;
+	}
+
+	if (MatchTimeSeconds > 0 && GetWorld())
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			MatchTimerHandle, this, &AFPSGameModeBase::HandleMatchTimerTick, 1.0f, true);
+	}
 }
 
 void AFPSGameModeBase::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
@@ -97,6 +123,27 @@ void AFPSGameModeBase::OnPlayerKilled(AController* Killer, AController* Victim)
 	if (KillerPS && KillerPS != VictimPS)
 	{
 		KillerPS->AddKill();
+	}
+
+	if (KillerPS && VictimPS && KillerPS != VictimPS)
+	{
+		const int32 KillerTeam = KillerPS->TeamId;
+		const int32 VictimTeam = VictimPS->TeamId;
+		if (KillerTeam != VictimTeam)
+		{
+			if (AFPSGameState* FPSGameState = GetFPSGameState())
+			{
+				if (KillerTeam == 0)
+				{
+					++FPSGameState->TeamAScore;
+				}
+				else if (KillerTeam == 1)
+				{
+					++FPSGameState->TeamBScore;
+				}
+				// TODO: add team system for more players/teams.
+			}
+		}
 	}
 }
 
@@ -254,5 +301,60 @@ bool AFPSGameModeBase::IsPlayerStartFree(const APlayerStart* Start) const
 	}
 
 	return true;
+}
+
+void AFPSGameModeBase::HandleMatchTimerTick()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState || FPSGameState->bMatchOver)
+	{
+		return;
+	}
+
+	FPSGameState->RemainingTime = FMath::Max(0, FPSGameState->RemainingTime - 1);
+	if (FPSGameState->RemainingTime <= 0)
+	{
+		EndMatchIfNeeded();
+	}
+}
+
+void AFPSGameModeBase::EndMatchIfNeeded()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState || FPSGameState->bMatchOver)
+	{
+		return;
+	}
+
+	FPSGameState->bMatchOver = true;
+	if (FPSGameState->TeamAScore > FPSGameState->TeamBScore)
+	{
+		FPSGameState->WinningTeamId = 0;
+	}
+	else if (FPSGameState->TeamBScore > FPSGameState->TeamAScore)
+	{
+		FPSGameState->WinningTeamId = 1;
+	}
+	else
+	{
+		FPSGameState->WinningTeamId = -1;
+	}
+
+	GetWorld()->GetTimerManager().ClearTimer(MatchTimerHandle);
+}
+
+AFPSGameState* AFPSGameModeBase::GetFPSGameState() const
+{
+	return GetGameState<AFPSGameState>();
 }
 

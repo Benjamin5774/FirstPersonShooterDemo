@@ -6,6 +6,8 @@
 class APawn;
 class AWeaponBase;
 class APlayerStart;
+class UUserWidget;
+class AFPSGameState;
 
 UCLASS()
 class TENCENTFPSDEMO_API AFPSGameModeBase : public AGameModeBase
@@ -15,6 +17,7 @@ class TENCENTFPSDEMO_API AFPSGameModeBase : public AGameModeBase
 public:
 	AFPSGameModeBase();
 
+	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
 		FString& ErrorMessage) override;
@@ -22,6 +25,9 @@ public:
 
 	void OnPlayerKilled(AController* Killer, AController* Victim);
 	void RequestRespawn(AController* Controller, APawn* DeadPawn);
+
+	TSubclassOf<UUserWidget> GetScoreboardWidgetClass() const { return ScoreboardWidgetClass; }
+	TSubclassOf<UUserWidget> GetGameOverWidgetClass() const { return GameOverWidgetClass; }
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Match")
@@ -42,12 +48,25 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Match|Spawn")
 	float SpawnCheckRadius;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Match|Score")
+	int32 MatchTimeSeconds;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Match|UI")
+	TSubclassOf<UUserWidget> ScoreboardWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Match|UI")
+	TSubclassOf<UUserWidget> GameOverWidgetClass;
+
 private:
 	void RespawnPlayer(AController* Controller);
 	AWeaponBase* FindWeaponFromPawn(APawn* Pawn) const;
 	AWeaponBase* FindWeaponFromNamedComponent(APawn* Pawn) const;
 	bool IsPlayerStartFree(const APlayerStart* Start) const;
+	void HandleMatchTimerTick();
+	void EndMatchIfNeeded();
+	AFPSGameState* GetFPSGameState() const;
 
 	TMap<TWeakObjectPtr<AController>, TWeakObjectPtr<AWeaponBase>> PendingRespawnWeapons;
+	FTimerHandle MatchTimerHandle;
 };
 
