@@ -1,0 +1,267 @@
+#include "WeaponBase.h"
+#include "HealthComponent.h"
+#include "FPSPlayerState.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/SphereComponent.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/Controller.h"
+#include "Net/UnrealNetwork.h"
+#include "UObject/UnrealType.h"
+
+AWeaponBase::AWeaponBase()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
+
+	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+	SetRootComponent(WeaponMesh);
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponMesh->SetIsReplicated(true);
+
+	PickupSphere = CreateDefaultSubobject<USphereComponent>(TEXT("PickupSphere"));
+	PickupSphere->SetupAttachment(RootComponent);
+	PickupSphere->InitSphereRadius(60.0f);
+	PickupSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	PickupSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
+	PickupSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+
+	TraceDistance = 10000.0f;
+	Damage = 25.0f;
+}
+
+void AWeaponBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (PickupSphere)
+	{
+		PickupSphere->OnComponentBeginOverlap.AddDynamic(this, &AWeaponBase::OnPickupSphereBeginOverlap);
+	}
+}
+
+void AWeaponBase::Fire()
+{
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn)
+	{
+		return;
+	}
+
+	if (HasAuthority())
+	{
+		ServerFire();
+		return;
+	}
+
+	if (OwnerPawn->IsLocallyControlled())
+	{
+		ServerFire();
+	}
+}
+
+void AWeaponBase::ServerFire_Implementation()
+{
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn || !WeaponMesh)
+	{
+		return;
+	}
+
+	const FVector MuzzleLocation = GetMuzzleLocation();
+	const FRotator AimRotation = GetAimRotation();
+	const FVector AimDir = AimRotation.Vector().GetSafeNormal();
+
+	if (BulletClass)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = OwnerPawn;
+		SpawnParams.Instigator = OwnerPawn;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		GetWorld()->SpawnActor<AActor>(BulletClass, MuzzleLocation, AimRotation, SpawnParams);
+	}
+
+	if (!AimDir.IsNearlyZero())
+	{
+		HandleLineTrace(MuzzleLocation, AimDir);
+	}
+}
+
+void AWeaponBase::OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!HasAuthority() || !OtherActor || OtherActor == this)
+	{
+		return;
+	}
+
+	APawn* Pawn = Cast<APawn>(OtherActor);
+	if (!Pawn)
+	{
+		return;
+	}
+
+	TryPickup(Pawn);
+}
+
+bool AWeaponBase::TryPickup(APawn* InPawn)
+{
+	if (!HasAuthority() || !InPawn || GetOwner() == InPawn)
+	{
+		return false;
+	}
+
+	USkeletalMeshComponent* PawnMesh = nullptr;
+	if (ACharacter* Character = Cast<ACharacter>(InPawn))
+	{
+		PawnMesh = Character->GetMesh();
+	}
+	else
+	{
+		PawnMesh = InPawn->FindComponentByClass<USkeletalMeshComponent>();
+	}
+
+	if (!PawnMesh)
+	{
+		return false;
+	}
+
+	SetOwner(InPawn);
+	AttachToPawn(InPawn, PawnMesh);
+	AssignWeaponToPawn(InPawn);
+
+	if (PickupSphere)
+	{
+		PickupSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	return true;
+}
+
+void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
+{
+	if (!PawnMesh)
+	{
+		return;
+	}
+
+	const FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
+	const FName SocketName = GrabPointName.IsNone() ? NAME_None : GrabPointName;
+	AttachToComponent(PawnMesh, AttachRules, SocketName);
+}
+
+void AWeaponBase::AssignWeaponToPawn(APawn* InPawn)
+{
+	if (!InPawn || WeaponVariableName.IsNone())
+	{
+		return;
+	}
+
+	SetWeaponVariableOnPawn(InPawn);
+
+	if (HasAuthority())
+	{
+		MulticastAssignWeaponToPawn(InPawn);
+	}
+}
+
+void AWeaponBase::SetWeaponVariableOnPawn(APawn* InPawn)
+{
+	if (!InPawn || WeaponVariableName.IsNone())
+	{
+		return;
+	}
+
+	FProperty* Prop = InPawn->GetClass()->FindPropertyByName(WeaponVariableName);
+	FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Prop);
+	if (!ObjProp)
+	{
+		return;
+	}
+
+	if (!ObjProp->PropertyClass->IsChildOf(AActor::StaticClass()))
+	{
+		return;
+	}
+
+	ObjProp->SetObjectPropertyValue_InContainer(InPawn, this);
+}
+
+void AWeaponBase::MulticastAssignWeaponToPawn_Implementation(APawn* InPawn)
+{
+	SetWeaponVariableOnPawn(InPawn);
+}
+
+FVector AWeaponBase::GetMuzzleLocation() const
+{
+	if (WeaponMesh && !FireSocketName.IsNone())
+	{
+		return WeaponMesh->GetSocketLocation(FireSocketName);
+	}
+
+	return WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
+}
+
+FRotator AWeaponBase::GetAimRotation() const
+{
+	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		if (AController* Controller = OwnerPawn->GetController())
+		{
+			return Controller->GetControlRotation();
+		}
+	}
+
+	return WeaponMesh ? WeaponMesh->GetComponentRotation() : GetActorRotation();
+}
+
+void AWeaponBase::HandleLineTrace(const FVector& Origin, const FVector& Dir)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const FVector TraceDir = Dir.GetSafeNormal();
+	const FVector End = Origin + (TraceDir * TraceDistance);
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(WeaponTrace), true);
+	Params.AddIgnoredActor(this);
+	if (AActor* OwnerActor = GetOwner())
+	{
+		Params.AddIgnoredActor(OwnerActor);
+	}
+
+	FHitResult HitResult;
+	const bool bHit = World->LineTraceSingleByChannel(HitResult, Origin, End, ECC_Visibility, Params);
+	if (!bHit)
+	{
+		return;
+	}
+
+	AActor* HitActor = HitResult.GetActor();
+	if (!HitActor)
+	{
+		return;
+	}
+
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	APawn* HitPawn = Cast<APawn>(HitActor);
+	if (OwnerPawn && HitPawn)
+	{
+		AFPSPlayerState* OwnerPS = Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState());
+		AFPSPlayerState* HitPS = Cast<AFPSPlayerState>(HitPawn->GetPlayerState());
+		if (OwnerPS && HitPS && OwnerPS->TeamId == HitPS->TeamId)
+		{
+			return;
+		}
+	}
+
+	if (UHealthComponent* HealthComp = HitActor->FindComponentByClass<UHealthComponent>())
+	{
+		AController* InstigatorController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
+		HealthComp->ApplyDamage(Damage, InstigatorController);
+	}
+}
+
