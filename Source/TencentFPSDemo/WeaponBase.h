@@ -57,6 +57,9 @@ protected:
 	FName GrabPointName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	FName WeaponGripPointName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	FName WeaponVariableName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")

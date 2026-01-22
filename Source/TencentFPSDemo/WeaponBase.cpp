@@ -8,6 +8,45 @@
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
 
+namespace
+{
+	bool GetMeshSocketOrBoneTransform(USkeletalMeshComponent* Mesh, const FName& Name, ERelativeTransformSpace Space, FTransform& OutTransform)
+	{
+		if (!Mesh || Name.IsNone())
+		{
+			return false;
+		}
+
+		if (Mesh->DoesSocketExist(Name))
+		{
+			OutTransform = Mesh->GetSocketTransform(Name, Space);
+			return true;
+		}
+
+		const int32 BoneIndex = Mesh->GetBoneIndex(Name);
+		if (BoneIndex == INDEX_NONE)
+		{
+			return false;
+		}
+
+		FTransform BoneInComponent = Mesh->GetBoneTransform(BoneIndex);
+		if (Space == RTS_Component)
+		{
+			OutTransform = BoneInComponent;
+			return true;
+		}
+
+		if (Space == RTS_World)
+		{
+			OutTransform = BoneInComponent * Mesh->GetComponentTransform();
+			return true;
+		}
+
+		OutTransform = BoneInComponent;
+		return true;
+	}
+}
+
 AWeaponBase::AWeaponBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -178,13 +217,33 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 	WeaponMesh->SetUsingAbsoluteScale(true);
 	WeaponMesh->SetRelativeScale3D(FVector::OneVector);
 
-	const FAttachmentTransformRules AttachRules(
-		EAttachmentRule::SnapToTarget,
-		EAttachmentRule::SnapToTarget,
-		EAttachmentRule::KeepWorld,
-		true);
-	const FName SocketName = GrabPointName.IsNone() ? NAME_None : GrabPointName;
-	AttachToComponent(PawnMesh, AttachRules, SocketName);
+	FTransform WeaponGripLocal;
+	FTransform PawnGrabComponent;
+	const bool bHasPawnGrab = GetMeshSocketOrBoneTransform(PawnMesh, GrabPointName, RTS_Component, PawnGrabComponent);
+	const bool bHasWeaponGrip = GetMeshSocketOrBoneTransform(WeaponMesh, WeaponGripPointName, RTS_Component, WeaponGripLocal);
+
+	if (bHasPawnGrab && bHasWeaponGrip)
+	{
+		const FAttachmentTransformRules AttachRules(
+			EAttachmentRule::KeepRelative,
+			EAttachmentRule::KeepRelative,
+			EAttachmentRule::KeepWorld,
+			true);
+		AttachToComponent(PawnMesh, AttachRules, GrabPointName);
+
+		const FTransform DesiredRelative = WeaponGripLocal.Inverse();
+		SetActorRelativeTransform(DesiredRelative, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	else
+	{
+		const FAttachmentTransformRules AttachRules(
+			EAttachmentRule::SnapToTarget,
+			EAttachmentRule::SnapToTarget,
+			EAttachmentRule::KeepWorld,
+			true);
+		const FName SocketName = GrabPointName.IsNone() ? NAME_None : GrabPointName;
+		AttachToComponent(PawnMesh, AttachRules, SocketName);
+	}
 }
 
 void AWeaponBase::AssignWeaponToPawn(APawn* InPawn)
