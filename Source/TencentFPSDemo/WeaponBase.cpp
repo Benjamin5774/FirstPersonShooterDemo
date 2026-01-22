@@ -5,6 +5,7 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Controller.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
 
@@ -94,6 +95,11 @@ void AWeaponBase::Fire()
 	if (!OwnerPawn)
 	{
 		return;
+	}
+
+	if (OwnerPawn->IsLocallyControlled() && FireSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
 	}
 
 	if (HasAuthority())
