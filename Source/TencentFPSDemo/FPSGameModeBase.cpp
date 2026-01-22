@@ -17,6 +17,7 @@ AFPSGameModeBase::AFPSGameModeBase()
 	TeamCount = 2;
 	RespawnDelay = 0.1f;
 	bKeepWeaponOnRespawn = false;
+	SpawnCheckRadius = 100.0f;
 }
 
 void AFPSGameModeBase::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
@@ -60,14 +61,23 @@ AActor* AFPSGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 		PlayerId = PlayerState->GetPlayerId();
 	}
 
-	const FString TargetName = (PlayerId == 0) ? TEXT("PlayerStart")
-		: FString::Printf(TEXT("PlayerStart%d"), PlayerId);
-
-	for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+	const int32 MaxStartIndex = 128;
+	for (int32 Offset = 0; Offset < MaxStartIndex; ++Offset)
 	{
-		if (It->GetName() == TargetName)
+		const int32 StartIndex = (PlayerId + Offset) % MaxStartIndex;
+		const FString TargetName = (StartIndex == 0) ? TEXT("PlayerStart")
+			: FString::Printf(TEXT("PlayerStart%d"), StartIndex);
+
+		for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
 		{
-			return *It;
+			if (It->GetName() == TargetName)
+			{
+				if (IsPlayerStartFree(*It))
+				{
+					return *It;
+				}
+				break;
+			}
 		}
 	}
 
@@ -217,5 +227,32 @@ AWeaponBase* AFPSGameModeBase::FindWeaponFromNamedComponent(APawn* Pawn) const
 	}
 
 	return nullptr;
+}
+
+bool AFPSGameModeBase::IsPlayerStartFree(const APlayerStart* Start) const
+{
+	if (!Start || !GetWorld())
+	{
+		return false;
+	}
+
+	const FVector StartLocation = Start->GetActorLocation();
+	const float RadiusSq = SpawnCheckRadius * SpawnCheckRadius;
+
+	for (TActorIterator<APawn> It(GetWorld()); It; ++It)
+	{
+		const APawn* Pawn = *It;
+		if (!IsValid(Pawn))
+		{
+			continue;
+		}
+
+		if (FVector::DistSquared(Pawn->GetActorLocation(), StartLocation) <= RadiusSq)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 

@@ -7,6 +7,7 @@
 class USkeletalMeshComponent;
 class USphereComponent;
 class UHealthComponent;
+class APawn;
 
 UCLASS()
 class TENCENTFPSDEMO_API AWeaponBase : public AActor

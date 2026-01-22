@@ -39,10 +39,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Match|Respawn")
 	FName WeaponComponentName;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Match|Spawn")
+	float SpawnCheckRadius;
+
 private:
 	void RespawnPlayer(AController* Controller);
 	AWeaponBase* FindWeaponFromPawn(APawn* Pawn) const;
 	AWeaponBase* FindWeaponFromNamedComponent(APawn* Pawn) const;
+	bool IsPlayerStartFree(const APlayerStart* Start) const;
 
 	TMap<TWeakObjectPtr<AController>, TWeakObjectPtr<AWeaponBase>> PendingRespawnWeapons;
 };
