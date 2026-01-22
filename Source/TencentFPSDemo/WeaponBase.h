@@ -19,6 +19,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	void Fire();
 
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool EquipToPawn(APawn* InPawn);
+
 protected:
 	virtual void BeginPlay() override;
 

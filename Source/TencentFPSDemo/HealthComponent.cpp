@@ -60,6 +60,7 @@ void UHealthComponent::HandleDeath(AController* InstigatorController)
 		if (AFPSGameModeBase* GameMode = World->GetAuthGameMode<AFPSGameModeBase>())
 		{
 			GameMode->OnPlayerKilled(InstigatorController, OwnerCharacter->GetController());
+			GameMode->RequestRespawn(OwnerCharacter->GetController(), OwnerCharacter);
 		}
 	}
 

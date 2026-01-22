@@ -98,6 +98,31 @@ void AWeaponBase::Fire()
 	}
 }
 
+bool AWeaponBase::EquipToPawn(APawn* InPawn)
+{
+	if (!HasAuthority() || !InPawn)
+	{
+		return false;
+	}
+
+	USkeletalMeshComponent* PawnMesh = FindAttachMeshOnPawn(InPawn);
+	if (!PawnMesh)
+	{
+		return false;
+	}
+
+	SetOwner(InPawn);
+	AttachToPawn(InPawn, PawnMesh);
+	AssignWeaponToPawn(InPawn);
+
+	if (PickupSphere)
+	{
+		PickupSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	return true;
+}
+
 void AWeaponBase::ServerFire_Implementation()
 {
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
