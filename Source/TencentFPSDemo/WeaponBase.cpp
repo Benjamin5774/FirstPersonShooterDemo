@@ -78,6 +78,16 @@ void AWeaponBase::BeginPlay()
 	}
 }
 
+void AWeaponBase::OnRep_Owner()
+{
+	Super::OnRep_Owner();
+
+	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		SetWeaponVariableOnPawn(OwnerPawn);
+	}
+}
+
 void AWeaponBase::Fire()
 {
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());

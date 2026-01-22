@@ -24,6 +24,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnRep_Owner() override;
 
 	UFUNCTION(Server, Reliable)
 	void ServerFire();
