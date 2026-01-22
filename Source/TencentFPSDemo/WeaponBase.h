@@ -33,6 +33,7 @@ protected:
 	FVector GetMuzzleLocation() const;
 	FRotator GetAimRotation() const;
 	bool TryPickup(APawn* InPawn);
+	USkeletalMeshComponent* FindAttachMeshOnPawn(APawn* InPawn) const;
 	void AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh);
 	void AssignWeaponToPawn(APawn* InPawn);
 	void SetWeaponVariableOnPawn(APawn* InPawn);

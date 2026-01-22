@@ -111,15 +111,7 @@ bool AWeaponBase::TryPickup(APawn* InPawn)
 		return false;
 	}
 
-	USkeletalMeshComponent* PawnMesh = nullptr;
-	if (ACharacter* Character = Cast<ACharacter>(InPawn))
-	{
-		PawnMesh = Character->GetMesh();
-	}
-	else
-	{
-		PawnMesh = InPawn->FindComponentByClass<USkeletalMeshComponent>();
-	}
+	USkeletalMeshComponent* PawnMesh = FindAttachMeshOnPawn(InPawn);
 
 	if (!PawnMesh)
 	{
@@ -138,6 +130,43 @@ bool AWeaponBase::TryPickup(APawn* InPawn)
 	return true;
 }
 
+USkeletalMeshComponent* AWeaponBase::FindAttachMeshOnPawn(APawn* InPawn) const
+{
+	if (!InPawn)
+	{
+		return nullptr;
+	}
+
+	TArray<USkeletalMeshComponent*> Meshes;
+	InPawn->GetComponents<USkeletalMeshComponent>(Meshes);
+
+	if (!GrabPointName.IsNone())
+	{
+		for (USkeletalMeshComponent* Mesh : Meshes)
+		{
+			if (!Mesh)
+			{
+				continue;
+			}
+
+			if (Mesh->DoesSocketExist(GrabPointName) || Mesh->GetBoneIndex(GrabPointName) != INDEX_NONE)
+			{
+				return Mesh;
+			}
+		}
+	}
+
+	if (ACharacter* Character = Cast<ACharacter>(InPawn))
+	{
+		if (USkeletalMeshComponent* CharacterMesh = Character->GetMesh())
+		{
+			return CharacterMesh;
+		}
+	}
+
+	return Meshes.Num() > 0 ? Meshes[0] : nullptr;
+}
+
 void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 {
 	if (!PawnMesh)
@@ -145,7 +174,15 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 		return;
 	}
 
-	const FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
+	// 避免父级非等比缩放导致武器变形
+	WeaponMesh->SetUsingAbsoluteScale(true);
+	WeaponMesh->SetRelativeScale3D(FVector::OneVector);
+
+	const FAttachmentTransformRules AttachRules(
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::KeepWorld,
+		true);
 	const FName SocketName = GrabPointName.IsNone() ? NAME_None : GrabPointName;
 	AttachToComponent(PawnMesh, AttachRules, SocketName);
 }
