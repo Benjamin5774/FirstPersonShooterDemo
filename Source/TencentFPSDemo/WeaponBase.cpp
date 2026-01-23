@@ -3,6 +3,9 @@
 #include "FPSPlayerState.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/TextBlock.h"
+#include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetTree.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Controller.h"
 #include "Kismet/GameplayStatics.h"
@@ -67,6 +70,14 @@ AWeaponBase::AWeaponBase()
 
 	TraceDistance = 10000.0f;
 	Damage = 25.0f;
+	FireRate = 8.0f;
+	MaxAmmo = 30;
+	CurrentAmmo = MaxAmmo;
+	ReloadTime = 1.2f;
+	bIsReloading = false;
+	bWantsToFire = false;
+	bAutoReload = true;
+	ReloadEndTime = 0.0f;
 }
 
 void AWeaponBase::BeginPlay()
@@ -77,6 +88,9 @@ void AWeaponBase::BeginPlay()
 	{
 		PickupSphere->OnComponentBeginOverlap.AddDynamic(this, &AWeaponBase::OnPickupSphereBeginOverlap);
 	}
+
+	CurrentAmmo = MaxAmmo;
+	UpdateAmmoUI();
 }
 
 void AWeaponBase::OnRep_Owner()
@@ -97,6 +111,15 @@ void AWeaponBase::Fire()
 		return;
 	}
 
+	if (!CanFire())
+	{
+		if (bAutoReload && CurrentAmmo <= 0)
+		{
+			StartReload();
+		}
+		return;
+	}
+
 	if (OwnerPawn->IsLocallyControlled() && FireSound)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
@@ -112,6 +135,53 @@ void AWeaponBase::Fire()
 	{
 		ServerFire();
 	}
+}
+
+void AWeaponBase::StartFire()
+{
+	bWantsToFire = true;
+	if (bIsReloading)
+	{
+		return;
+	}
+
+	HandleAutoFireTick();
+
+	const float Interval = GetFireInterval();
+	if (Interval > 0.0f)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(FireTimerHandle, this, &AWeaponBase::HandleAutoFireTick, Interval, true);
+		}
+	}
+}
+
+void AWeaponBase::StopFire()
+{
+	bWantsToFire = false;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(FireTimerHandle);
+	}
+}
+
+void AWeaponBase::StartReload()
+{
+	if (HasAuthority())
+	{
+		StartReloadInternal();
+		return;
+	}
+
+	ServerStartReload();
+}
+
+void AWeaponBase::SetFireWidget(UUserWidget* InWidget)
+{
+	FireWidget = InWidget;
+	UpdateAmmoUI();
+	UpdateReloadUI();
 }
 
 bool AWeaponBase::EquipToPawn(APawn* InPawn)
@@ -147,6 +217,17 @@ void AWeaponBase::ServerFire_Implementation()
 		return;
 	}
 
+	if (!CanFire())
+	{
+		if (bAutoReload && CurrentAmmo <= 0)
+		{
+			StartReloadInternal();
+		}
+		return;
+	}
+
+	ConsumeAmmo();
+
 	const FVector MuzzleLocation = GetMuzzleLocation();
 	const FRotator AimRotation = GetAimRotation();
 	const FVector AimDir = AimRotation.Vector().GetSafeNormal();
@@ -165,6 +246,11 @@ void AWeaponBase::ServerFire_Implementation()
 	{
 		HandleLineTrace(MuzzleLocation, AimDir);
 	}
+}
+
+void AWeaponBase::ServerStartReload_Implementation()
+{
+	StartReloadInternal();
 }
 
 void AWeaponBase::OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -400,5 +486,158 @@ void AWeaponBase::HandleLineTrace(const FVector& Origin, const FVector& Dir)
 		AController* InstigatorController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
 		HealthComp->ApplyDamage(Damage, InstigatorController);
 	}
+}
+
+void AWeaponBase::HandleAutoFireTick()
+{
+	if (bIsReloading)
+	{
+		return;
+	}
+
+	Fire();
+}
+
+bool AWeaponBase::CanFire() const
+{
+	return !bIsReloading && CurrentAmmo > 0;
+}
+
+float AWeaponBase::GetFireInterval() const
+{
+	return FireRate > 0.0f ? (1.0f / FireRate) : 0.0f;
+}
+
+void AWeaponBase::ConsumeAmmo()
+{
+	if (CurrentAmmo <= 0)
+	{
+		return;
+	}
+
+	--CurrentAmmo;
+	UpdateAmmoUI();
+
+	if (bAutoReload && CurrentAmmo <= 0)
+	{
+		StartReloadInternal();
+	}
+}
+
+void AWeaponBase::StartReloadInternal()
+{
+	if (bIsReloading || MaxAmmo <= 0 || ReloadTime <= 0.0f)
+	{
+		return;
+	}
+
+	bIsReloading = true;
+	ReloadEndTime = GetWorld() ? GetWorld()->GetTimeSeconds() + ReloadTime : 0.0f;
+	StartReloadUI();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReloadTimerHandle);
+		World->GetTimerManager().SetTimer(ReloadTimerHandle, this, &AWeaponBase::FinishReload, ReloadTime, false);
+	}
+}
+
+void AWeaponBase::FinishReload()
+{
+	CurrentAmmo = MaxAmmo;
+	bIsReloading = false;
+	ReloadEndTime = 0.0f;
+	StopReloadUI();
+	UpdateAmmoUI();
+
+	if (bWantsToFire)
+	{
+		StartFire();
+	}
+}
+
+void AWeaponBase::StartReloadUI()
+{
+	UpdateReloadUI();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReloadUITimerHandle);
+		World->GetTimerManager().SetTimer(ReloadUITimerHandle, this, &AWeaponBase::UpdateReloadUI, 0.1f, true);
+	}
+}
+
+void AWeaponBase::StopReloadUI()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReloadUITimerHandle);
+	}
+	UpdateReloadUI();
+}
+
+void AWeaponBase::UpdateAmmoUI()
+{
+	if (!FireWidget)
+	{
+		return;
+	}
+
+	if (UWidgetTree* WidgetTree = FireWidget->WidgetTree)
+	{
+		if (UTextBlock* AmmoText = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("CurrentBulletNumber"))))
+		{
+			AmmoText->SetText(FText::AsNumber(CurrentAmmo));
+		}
+	}
+}
+
+void AWeaponBase::UpdateReloadUI()
+{
+	if (!FireWidget)
+	{
+		return;
+	}
+
+	FText Text = FText::GetEmpty();
+	if (bIsReloading && GetWorld())
+	{
+		const float Remaining = FMath::Max(0.0f, ReloadEndTime - GetWorld()->GetTimeSeconds());
+		Text = FText::AsNumber(FMath::CeilToInt(Remaining));
+	}
+
+	if (UWidgetTree* WidgetTree = FireWidget->WidgetTree)
+	{
+		if (UTextBlock* CDText = Cast<UTextBlock>(WidgetTree->FindWidget(TEXT("FireCDTimerText"))))
+		{
+			CDText->SetText(Text);
+		}
+	}
+}
+
+void AWeaponBase::OnRep_CurrentAmmo()
+{
+	UpdateAmmoUI();
+}
+
+void AWeaponBase::OnRep_Reloading()
+{
+	if (bIsReloading)
+	{
+		ReloadEndTime = GetWorld() ? GetWorld()->GetTimeSeconds() + ReloadTime : 0.0f;
+		StartReloadUI();
+	}
+	else
+	{
+		StopReloadUI();
+	}
+}
+
+void AWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AWeaponBase, CurrentAmmo);
+	DOREPLIFETIME(AWeaponBase, bIsReloading);
 }
 

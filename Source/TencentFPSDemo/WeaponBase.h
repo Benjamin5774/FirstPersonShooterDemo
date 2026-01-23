@@ -8,6 +8,8 @@ class USkeletalMeshComponent;
 class USphereComponent;
 class UHealthComponent;
 class APawn;
+class UUserWidget;
+class UTextBlock;
 
 UCLASS()
 class TENCENTFPSDEMO_API AWeaponBase : public AActor
@@ -21,14 +23,30 @@ public:
 	void Fire();
 
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void StartFire();
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void StopFire();
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void StartReload();
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void SetFireWidget(UUserWidget* InWidget);
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipToPawn(APawn* InPawn);
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnRep_Owner() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UFUNCTION(Server, Reliable)
 	void ServerFire();
+
+	UFUNCTION(Server, Reliable)
+	void ServerStartReload();
 
 	UFUNCTION()
 	void OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -42,6 +60,23 @@ protected:
 	void AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh);
 	void AssignWeaponToPawn(APawn* InPawn);
 	void SetWeaponVariableOnPawn(APawn* InPawn);
+
+	void HandleAutoFireTick();
+	bool CanFire() const;
+	float GetFireInterval() const;
+	void ConsumeAmmo();
+	void FinishReload();
+	void StartReloadInternal();
+	void StartReloadUI();
+	void StopReloadUI();
+	void UpdateAmmoUI();
+	void UpdateReloadUI();
+
+	UFUNCTION()
+	void OnRep_CurrentAmmo();
+
+	UFUNCTION()
+	void OnRep_Reloading();
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastAssignWeaponToPawn(APawn* InPawn);
@@ -75,5 +110,36 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float Damage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Fire")
+	float FireRate;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
+	int32 MaxAmmo;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentAmmo, VisibleInstanceOnly, Category = "Weapon|Ammo")
+	int32 CurrentAmmo;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
+	float ReloadTime;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Reloading, VisibleInstanceOnly, Category = "Weapon|Ammo")
+	bool bIsReloading;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|Ammo")
+	bool bWantsToFire;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
+	bool bAutoReload;
+
+	UPROPERTY(Transient)
+	UUserWidget* FireWidget;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|Ammo")
+	float ReloadEndTime;
+
+	FTimerHandle FireTimerHandle;
+	FTimerHandle ReloadTimerHandle;
+	FTimerHandle ReloadUITimerHandle;
 };
 
