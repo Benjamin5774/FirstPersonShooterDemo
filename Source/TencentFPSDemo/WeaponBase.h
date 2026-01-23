@@ -8,6 +8,7 @@ class USkeletalMeshComponent;
 class USphereComponent;
 class UHealthComponent;
 class APawn;
+class USoundBase;
 
 UCLASS()
 class TENCENTFPSDEMO_API AWeaponBase : public AActor
@@ -29,6 +30,9 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerFire();
+
+	UFUNCTION(Client, Reliable)
+	void ClientShowHitFeedback(FVector_NetQuantize Location, float DamageAmount);
 
 	UFUNCTION()
 	void OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -70,10 +74,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Audio")
 	USoundBase* FireSound;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Audio")
+	USoundBase* HitSound;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float TraceDistance;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float Damage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|HitEffect")
+	TSubclassOf<AActor> HitEffectClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|HitEffect")
+	FLinearColor HitTextColor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|HitEffect")
+	float HitEffectZOffset;
 };
 
