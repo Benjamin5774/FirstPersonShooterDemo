@@ -16,6 +16,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Activate(bool bReset) override;
 
 private:
 	UPROPERTY(EditDefaultsOnly, Category = "Damage")

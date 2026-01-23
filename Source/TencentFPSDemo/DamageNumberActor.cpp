@@ -40,7 +40,7 @@ void ADamageNumberActor::BeginPlay()
 	WidgetComponent->SetWidgetSpace(bUseScreenSpace ? EWidgetSpace::Screen : EWidgetSpace::World);
 	WidgetComponent->SetDrawAtDesiredSize(true);
 
-	if (!SpawnOffset.IsNearlyZero())
+	if (HasAuthority() && !SpawnOffset.IsNearlyZero())
 	{
 		AddActorWorldOffset(SpawnOffset, false);
 	}
