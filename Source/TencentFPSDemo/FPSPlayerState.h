@@ -25,6 +25,9 @@ public:
 	void AddKill();
 	void AddDeath();
 
+	UFUNCTION(Client, Reliable)
+	void ClientShowDamageNumber(AActor* HitActor, float Damage, FLinearColor Color, TSubclassOf<AActor> DamageEffectClass);
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
 

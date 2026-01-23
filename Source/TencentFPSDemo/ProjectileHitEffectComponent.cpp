@@ -1,5 +1,5 @@
 #include "ProjectileHitEffectComponent.h"
-#include "DamageEffectInterface.h"
+#include "FPSPlayerState.h"
 #include "HealthComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -64,7 +64,11 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		const float AppliedDamage = FMath::Abs(DamageAmount);
 		HealthComp->ApplyDamage(AppliedDamage, OwnerController);
 
-		SpawnDamageEffect(OwnerController, OtherActor, AppliedDamage);
+		if (AFPSPlayerState* OwnerPS = OwnerPawn ? Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState()) : nullptr)
+		{
+			OwnerPS->ClientShowDamageNumber(OtherActor, -AppliedDamage, DamageColor, DamageEffectClass);
+		}
+
 		PlayHitSoundForOwner(OwnerController);
 		bHasTriggered = true;
 	}
@@ -86,34 +90,6 @@ bool UProjectileHitEffectComponent::IsValidHitTarget(APawn* OwnerPawn, APawn* Ot
 	}
 
 	return true;
-}
-
-void UProjectileHitEffectComponent::SpawnDamageEffect(AController* OwnerController, AActor* HitActor, float AppliedDamage)
-{
-	if (!DamageEffectClass || !GetWorld() || !HitActor)
-	{
-		return;
-	}
-
-	const FVector Location = HitActor->GetActorLocation();
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = OwnerController;
-	SpawnParams.Instigator = Cast<APawn>(OwnerController ? OwnerController->GetPawn() : nullptr);
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	AActor* EffectActor = GetWorld()->SpawnActor<AActor>(DamageEffectClass, Location, FRotator::ZeroRotator, SpawnParams);
-	if (!EffectActor)
-	{
-		return;
-	}
-
-	EffectActor->SetOwner(OwnerController);
-
-	if (EffectActor->GetClass()->ImplementsInterface(UDamageEffectInterface::StaticClass()))
-	{
-		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, -AppliedDamage, DamageColor);
-	}
 }
 
 void UProjectileHitEffectComponent::PlayHitSoundForOwner(AController* OwnerController)
