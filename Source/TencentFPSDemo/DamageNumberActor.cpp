@@ -11,12 +11,15 @@ ADamageNumberActor::ADamageNumberActor()
 	bReplicates = true;
 	bOnlyRelevantToOwner = true;
 	SetReplicateMovement(false);
+	SetActorEnableCollision(false);
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
 
 	WidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WidgetComponent"));
 	WidgetComponent->SetupAttachment(RootComponent);
+	WidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WidgetComponent->SetGenerateOverlapEvents(false);
 
 	RiseSpeed = 40.0f;
 	LifeTime = 1.0f;
