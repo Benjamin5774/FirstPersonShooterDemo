@@ -13,7 +13,7 @@ UProjectileHitEffectComponent::UProjectileHitEffectComponent()
 	DamageAmount = 25.0f;
 	DamageColor = FLinearColor::Red;
 	bOnlyOnOtherPlayers = true;
-	bTriggerOnce = false;
+	bTriggerOnce = true;
 	bHasTriggered = false;
 }
 
@@ -21,18 +21,10 @@ void UProjectileHitEffectComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	bHasTriggered = false;
-
 	if (AActor* OwnerActor = GetOwner())
 	{
 		OwnerActor->OnActorHit.AddDynamic(this, &UProjectileHitEffectComponent::HandleOwnerHit);
 	}
-}
-
-void UProjectileHitEffectComponent::Activate(bool bReset)
-{
-	Super::Activate(bReset);
-	bHasTriggered = false;
 }
 
 void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* OtherActor,

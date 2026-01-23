@@ -33,7 +33,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Health, EditDefaultsOnly, Category = "Health")
 	float Health;
@@ -54,9 +53,6 @@ protected:
 
 	UFUNCTION(Client, Reliable)
 	void ClientShowHitEffect(float Duration);
-
-	UFUNCTION(Client, Reliable)
-	void ClientClearHitEffect();
 
 	void RemoveHitEffect();
 

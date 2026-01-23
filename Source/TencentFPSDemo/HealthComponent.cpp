@@ -27,18 +27,6 @@ void UHealthComponent::BeginPlay()
 	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
-void UHealthComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(HitEffectTimerHandle);
-	}
-
-	RemoveHitEffect();
-
-	Super::EndPlay(EndPlayReason);
-}
-
 void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorController)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())
@@ -93,11 +81,6 @@ void UHealthComponent::HandleDeath(AController* InstigatorController)
 		return;
 	}
 
-	if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
-	{
-		ClientClearHitEffect();
-	}
-
 	if (UWorld* World = GetWorld())
 	{
 		if (AFPSGameModeBase* GameMode = World->GetAuthGameMode<AFPSGameModeBase>())
@@ -133,21 +116,16 @@ void UHealthComponent::ClientShowHitEffect_Implementation(float Duration)
 		return;
 	}
 
-	if (!ActiveHitWidget)
-	{
-		ActiveHitWidget = CreateWidget<UUserWidget>(PC, HitEffectWidgetClass);
-		if (ActiveHitWidget)
-		{
-			ActiveHitWidget->AddToViewport();
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("受击但调用红色屏幕失败"));
-		}
-	}
-	else if (!ActiveHitWidget->IsInViewport())
+	RemoveHitEffect();
+
+	ActiveHitWidget = CreateWidget<UUserWidget>(PC, HitEffectWidgetClass);
+	if (ActiveHitWidget)
 	{
 		ActiveHitWidget->AddToViewport();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("受击但调用红色屏幕失败"));
 	}
 
 	if (UWorld* World = GetWorld())
@@ -156,16 +134,6 @@ void UHealthComponent::ClientShowHitEffect_Implementation(float Duration)
 		World->GetTimerManager().SetTimer(HitEffectTimerHandle, this, &UHealthComponent::RemoveHitEffect,
 			FMath::Max(0.01f, Duration), false);
 	}
-}
-
-void UHealthComponent::ClientClearHitEffect_Implementation()
-{
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(HitEffectTimerHandle);
-	}
-
-	RemoveHitEffect();
 }
 
 void UHealthComponent::RemoveHitEffect()
