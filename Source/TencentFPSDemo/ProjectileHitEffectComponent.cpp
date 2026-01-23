@@ -60,9 +60,11 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 	if (UHealthComponent* HealthComp = OtherActor->FindComponentByClass<UHealthComponent>())
 	{
 		AController* OwnerController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
-		HealthComp->ApplyDamage(DamageAmount, OwnerController);
+		UE_LOG(LogTemp, Log, TEXT("子弹命中触发扣血"));
+		const float AppliedDamage = FMath::Abs(DamageAmount);
+		HealthComp->ApplyDamage(AppliedDamage, OwnerController);
 
-		SpawnDamageEffect(OwnerController, Hit.ImpactPoint);
+		SpawnDamageEffect(OwnerController, Hit.ImpactPoint, AppliedDamage);
 		PlayHitSoundForOwner(OwnerController);
 		bHasTriggered = true;
 	}
@@ -86,7 +88,7 @@ bool UProjectileHitEffectComponent::IsValidHitTarget(APawn* OwnerPawn, APawn* Ot
 	return true;
 }
 
-void UProjectileHitEffectComponent::SpawnDamageEffect(AController* OwnerController, const FVector& Location)
+void UProjectileHitEffectComponent::SpawnDamageEffect(AController* OwnerController, const FVector& Location, float AppliedDamage)
 {
 	if (!DamageEffectClass || !GetWorld())
 	{
@@ -108,7 +110,7 @@ void UProjectileHitEffectComponent::SpawnDamageEffect(AController* OwnerControll
 
 	if (EffectActor->GetClass()->ImplementsInterface(UDamageEffectInterface::StaticClass()))
 	{
-		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, DamageAmount, DamageColor);
+		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, -AppliedDamage, DamageColor);
 	}
 }
 

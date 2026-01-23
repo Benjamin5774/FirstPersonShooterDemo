@@ -42,7 +42,7 @@ private:
 	void HandleOwnerHit(AActor* SelfActor, AActor* OtherActor, FVector NormalImpulse, const FHitResult& Hit);
 
 	bool IsValidHitTarget(APawn* OwnerPawn, APawn* OtherPawn) const;
-	void SpawnDamageEffect(AController* OwnerController, const FVector& Location);
+	void SpawnDamageEffect(AController* OwnerController, const FVector& Location, float AppliedDamage);
 	void PlayHitSoundForOwner(AController* OwnerController);
 };
 
