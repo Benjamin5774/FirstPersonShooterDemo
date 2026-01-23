@@ -1,5 +1,4 @@
 #include "WeaponBase.h"
-#include "DamageEffectInterface.h"
 #include "HealthComponent.h"
 #include "FPSPlayerState.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -68,8 +67,6 @@ AWeaponBase::AWeaponBase()
 
 	TraceDistance = 10000.0f;
 	Damage = 25.0f;
-	HitTextColor = FLinearColor::Red;
-	HitEffectZOffset = 60.0f;
 }
 
 void AWeaponBase::BeginPlay()
@@ -100,8 +97,6 @@ void AWeaponBase::Fire()
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Weapon Fire: Owner=%s LocallyControlled=%d HasAuthority=%d"),
-		*GetNameSafe(OwnerPawn), OwnerPawn->IsLocallyControlled(), HasAuthority());
 	if (OwnerPawn->IsLocallyControlled() && FireSound)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
@@ -109,14 +104,12 @@ void AWeaponBase::Fire()
 
 	if (HasAuthority())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Weapon Fire -> ServerFire (authority)"));
 		ServerFire();
 		return;
 	}
 
 	if (OwnerPawn->IsLocallyControlled())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Weapon Fire -> ServerFire (client)"));
 		ServerFire();
 	}
 }
@@ -148,7 +141,6 @@ bool AWeaponBase::EquipToPawn(APawn* InPawn)
 
 void AWeaponBase::ServerFire_Implementation()
 {
-	UE_LOG(LogTemp, Log, TEXT("Weapon ServerFire"));
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn || !WeaponMesh)
 	{
@@ -159,11 +151,6 @@ void AWeaponBase::ServerFire_Implementation()
 	const FRotator AimRotation = GetAimRotation();
 	const FVector AimDir = AimRotation.Vector().GetSafeNormal();
 
-	if (!AimDir.IsNearlyZero())
-	{
-		HandleLineTrace(MuzzleLocation, AimDir);
-	}
-
 	if (BulletClass)
 	{
 		FActorSpawnParameters SpawnParams;
@@ -173,50 +160,10 @@ void AWeaponBase::ServerFire_Implementation()
 
 		GetWorld()->SpawnActor<AActor>(BulletClass, MuzzleLocation, AimRotation, SpawnParams);
 	}
-}
 
-void AWeaponBase::ClientShowHitFeedback_Implementation(FVector_NetQuantize Location, float DamageAmount)
-{
-	UE_LOG(LogTemp, Log, TEXT("受击效果RPC: Location=%s Damage=%.2f"), *FVector(Location).ToString(), DamageAmount);
-	const FVector SpawnLocation = FVector(Location) + FVector(0.0f, 0.0f, HitEffectZOffset);
-
-	if (HitSound)
+	if (!AimDir.IsNearlyZero())
 	{
-		UE_LOG(LogTemp, Log, TEXT("受击声音开始播放"));
-		UGameplayStatics::PlaySoundAtLocation(this, HitSound, SpawnLocation);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击音效为空: HitSound 未设置"));
-	}
-
-	if (!HitEffectClass)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击特效为空: HitEffectClass 未设置"));
-		return;
-	}
-
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AActor* EffectActor = World->SpawnActor<AActor>(HitEffectClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
-	if (!EffectActor)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击特效生成失败: 类=%s"), *GetNameSafe(HitEffectClass));
-		return;
-	}
-	if (EffectActor && EffectActor->GetClass()->ImplementsInterface(UDamageEffectInterface::StaticClass()))
-	{
-		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, DamageAmount, HitTextColor);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击特效未实现接口: %s"), *GetNameSafe(EffectActor));
+		HandleLineTrace(MuzzleLocation, AimDir);
 	}
 }
 
@@ -423,40 +370,18 @@ void AWeaponBase::HandleLineTrace(const FVector& Origin, const FVector& Dir)
 		Params.AddIgnoredActor(OwnerActor);
 	}
 
-	TArray<FHitResult> HitResults;
-	const bool bHit = World->LineTraceMultiByChannel(HitResults, Origin, End, ECC_Visibility, Params);
+	FHitResult HitResult;
+	const bool bHit = World->LineTraceSingleByChannel(HitResult, Origin, End, ECC_Visibility, Params);
 	if (!bHit)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Weapon Trace: NoHit"));
 		return;
 	}
 
-	FHitResult HitResult;
-	AActor* HitActor = nullptr;
-	for (const FHitResult& Candidate : HitResults)
-	{
-		AActor* CandidateActor = Candidate.GetActor();
-		if (!CandidateActor)
-		{
-			continue;
-		}
-
-		if (BulletClass && CandidateActor->IsA(BulletClass))
-		{
-			continue;
-		}
-
-		HitResult = Candidate;
-		HitActor = CandidateActor;
-		break;
-	}
-
+	AActor* HitActor = HitResult.GetActor();
 	if (!HitActor)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Weapon Trace: NoValidHit"));
 		return;
 	}
-	UE_LOG(LogTemp, Log, TEXT("Weapon Trace: HitActor=%s"), *GetNameSafe(HitActor));
 
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	APawn* HitPawn = Cast<APawn>(HitActor);
@@ -474,8 +399,6 @@ void AWeaponBase::HandleLineTrace(const FVector& Origin, const FVector& Dir)
 	{
 		AController* InstigatorController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
 		HealthComp->ApplyDamage(Damage, InstigatorController);
-		UE_LOG(LogTemp, Log, TEXT("受击效果开始播放"));
-		ClientShowHitFeedback(HitResult.ImpactPoint, Damage);
 	}
 }
 
