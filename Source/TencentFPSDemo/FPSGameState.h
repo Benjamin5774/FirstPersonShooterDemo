@@ -27,6 +27,18 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Score")
 	int32 WinningTeamId;
 
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match")
+	bool bMatchStarted;
+
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match")
+	bool bWaitingForStart;
+
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match")
+	bool bWaitingForRestart;
+
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match")
+	int32 ReadyPlayerCount;
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
 

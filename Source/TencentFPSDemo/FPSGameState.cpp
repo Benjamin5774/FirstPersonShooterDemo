@@ -8,6 +8,10 @@ AFPSGameState::AFPSGameState()
 	RemainingTime = 0;
 	bMatchOver = false;
 	WinningTeamId = -1;
+	bMatchStarted = false;
+	bWaitingForStart = true;
+	bWaitingForRestart = false;
+	ReadyPlayerCount = 0;
 }
 
 void AFPSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -19,5 +23,9 @@ void AFPSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AFPSGameState, RemainingTime);
 	DOREPLIFETIME(AFPSGameState, bMatchOver);
 	DOREPLIFETIME(AFPSGameState, WinningTeamId);
+	DOREPLIFETIME(AFPSGameState, bMatchStarted);
+	DOREPLIFETIME(AFPSGameState, bWaitingForStart);
+	DOREPLIFETIME(AFPSGameState, bWaitingForRestart);
+	DOREPLIFETIME(AFPSGameState, ReadyPlayerCount);
 }
 

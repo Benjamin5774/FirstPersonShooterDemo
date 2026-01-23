@@ -6,6 +6,7 @@
 
 class UUserWidget;
 class UTextBlock;
+class UButton;
 
 UCLASS()
 class TENCENTFPSDEMO_API AFPSHUD : public AHUD
@@ -20,12 +21,28 @@ private:
 	void TryInitWidgets();
 	void UpdateScoreboard();
 	void ShowGameOverIfNeeded();
+	void UpdateStartWidget();
+	void UpdateReplayWidget();
+	void UpdateReadyText(UTextBlock* ReadyText, int32 ReadyCount, int32 TotalPlayers) const;
+	void UpdateInputMode();
+
+	UFUNCTION()
+	void HandleStartButtonClicked();
+
+	UFUNCTION()
+	void HandleRestartButtonClicked();
 
 	UPROPERTY()
 	UUserWidget* ScoreboardWidget;
 
 	UPROPERTY()
 	UUserWidget* GameOverWidget;
+
+	UPROPERTY()
+	UUserWidget* StartWidget;
+
+	UPROPERTY()
+	UUserWidget* ReplayWidget;
 
 	UPROPERTY()
 	UTextBlock* TimerText;
@@ -39,6 +56,21 @@ private:
 	UPROPERTY()
 	UTextBlock* GameOverDisplayText;
 
+	UPROPERTY()
+	UTextBlock* StartReadyText;
+
+	UPROPERTY()
+	UTextBlock* ReplayReadyText;
+
+	UPROPERTY()
+	UButton* StartButton;
+
+	UPROPERTY()
+	UButton* RestartButton;
+
 	bool bGameOverWidgetShown = false;
+	bool bStartWidgetShown = false;
+	bool bReplayWidgetShown = false;
+	bool bUIInputEnabled = false;
 };
 

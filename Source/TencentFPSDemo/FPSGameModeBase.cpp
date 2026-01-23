@@ -1,6 +1,7 @@
 #include "FPSGameModeBase.h"
 #include "FPSGameState.h"
 #include "FPSHUD.h"
+#include "FPSPlayerController.h"
 #include "FPSPlayerState.h"
 #include "EngineUtils.h"
 #include "Components/ActorComponent.h"
@@ -17,6 +18,7 @@ AFPSGameModeBase::AFPSGameModeBase()
 	PlayerStateClass = AFPSPlayerState::StaticClass();
 	GameStateClass = AFPSGameState::StaticClass();
 	HUDClass = AFPSHUD::StaticClass();
+	PlayerControllerClass = AFPSPlayerController::StaticClass();
 
 	MaxPlayers = 4;
 	TeamCount = 2;
@@ -37,12 +39,20 @@ void AFPSGameModeBase::BeginPlay()
 		FPSGameState->TeamBScore = 0;
 		FPSGameState->bMatchOver = false;
 		FPSGameState->WinningTeamId = -1;
+		FPSGameState->bMatchStarted = false;
+		FPSGameState->bWaitingForStart = true;
+		FPSGameState->bWaitingForRestart = false;
+		FPSGameState->ReadyPlayerCount = 0;
 	}
 
-	if (MatchTimeSeconds > 0 && GetWorld())
+	ReadyPlayers.Empty();
+	RestartReadyPlayers.Empty();
+	PendingRespawnWeapons.Empty();
+	CacheInitialWeaponSpawns();
+
+	if (UWorld* World = GetWorld())
 	{
-		GetWorld()->GetTimerManager().SetTimer(
-			MatchTimerHandle, this, &AFPSGameModeBase::HandleMatchTimerTick, 1.0f, true);
+		World->GetTimerManager().ClearTimer(MatchTimerHandle);
 	}
 }
 
@@ -72,6 +82,37 @@ void AFPSGameModeBase::PostLogin(APlayerController* NewPlayer)
 	const int32 PlayerIndex = GameState ? (GameState->PlayerArray.Num() - 1) : 0;
 	const int32 TeamId = PlayerIndex % TeamCount;
 	FPSPlayerState->SetTeamId(TeamId);
+
+	UpdateReadyCount();
+}
+
+void AFPSGameModeBase::Logout(AController* Exiting)
+{
+	Super::Logout(Exiting);
+
+	APlayerController* ExitingPC = Cast<APlayerController>(Exiting);
+	if (ExitingPC)
+	{
+		ReadyPlayers.Remove(ExitingPC);
+		RestartReadyPlayers.Remove(ExitingPC);
+	}
+
+	UpdateReadyCount();
+
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState)
+	{
+		return;
+	}
+
+	if (FPSGameState->bWaitingForStart && AreAllPlayersReady(ReadyPlayers))
+	{
+		BeginMatch();
+	}
+	else if (FPSGameState->bWaitingForRestart && AreAllPlayersReady(RestartReadyPlayers))
+	{
+		BeginRestart();
+	}
 }
 
 AActor* AFPSGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
@@ -311,7 +352,7 @@ void AFPSGameModeBase::HandleMatchTimerTick()
 	}
 
 	AFPSGameState* FPSGameState = GetFPSGameState();
-	if (!FPSGameState || FPSGameState->bMatchOver)
+	if (!FPSGameState || FPSGameState->bMatchOver || !FPSGameState->bMatchStarted)
 	{
 		return;
 	}
@@ -337,6 +378,10 @@ void AFPSGameModeBase::EndMatchIfNeeded()
 	}
 
 	FPSGameState->bMatchOver = true;
+	FPSGameState->bMatchStarted = false;
+	FPSGameState->bWaitingForRestart = true;
+	FPSGameState->bWaitingForStart = false;
+	FPSGameState->ReadyPlayerCount = 0;
 	if (FPSGameState->TeamAScore > FPSGameState->TeamBScore)
 	{
 		FPSGameState->WinningTeamId = 0;
@@ -351,10 +396,238 @@ void AFPSGameModeBase::EndMatchIfNeeded()
 	}
 
 	GetWorld()->GetTimerManager().ClearTimer(MatchTimerHandle);
+
+	ReadyPlayers.Empty();
+	RestartReadyPlayers.Empty();
 }
 
 AFPSGameState* AFPSGameModeBase::GetFPSGameState() const
 {
 	return GetGameState<AFPSGameState>();
+}
+
+void AFPSGameModeBase::HandlePlayerReady(APlayerController* PlayerController, bool bForRestart)
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState)
+	{
+		return;
+	}
+
+	if (bForRestart)
+	{
+		if (!FPSGameState->bWaitingForRestart)
+		{
+			return;
+		}
+
+		if (RestartReadyPlayers.Contains(PlayerController))
+		{
+			return;
+		}
+
+		RestartReadyPlayers.Add(PlayerController);
+		UpdateReadyCount();
+
+		if (AreAllPlayersReady(RestartReadyPlayers))
+		{
+			BeginRestart();
+		}
+	}
+	else
+	{
+		if (!FPSGameState->bWaitingForStart)
+		{
+			return;
+		}
+
+		if (ReadyPlayers.Contains(PlayerController))
+		{
+			return;
+		}
+
+		ReadyPlayers.Add(PlayerController);
+		UpdateReadyCount();
+
+		if (AreAllPlayersReady(ReadyPlayers))
+		{
+			BeginMatch();
+		}
+	}
+}
+
+void AFPSGameModeBase::StartMatchTimer()
+{
+	if (!GetWorld() || MatchTimeSeconds <= 0)
+	{
+		return;
+	}
+
+	GetWorld()->GetTimerManager().ClearTimer(MatchTimerHandle);
+	GetWorld()->GetTimerManager().SetTimer(MatchTimerHandle, this, &AFPSGameModeBase::HandleMatchTimerTick, 1.0f, true);
+}
+
+void AFPSGameModeBase::BeginMatch()
+{
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState)
+	{
+		return;
+	}
+
+	FPSGameState->bMatchOver = false;
+	FPSGameState->bMatchStarted = true;
+	FPSGameState->bWaitingForStart = false;
+	FPSGameState->bWaitingForRestart = false;
+	FPSGameState->WinningTeamId = -1;
+	FPSGameState->ReadyPlayerCount = 0;
+	FPSGameState->RemainingTime = MatchTimeSeconds;
+
+	ReadyPlayers.Empty();
+	RestartReadyPlayers.Empty();
+
+	StartMatchTimer();
+}
+
+void AFPSGameModeBase::BeginRestart()
+{
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState)
+	{
+		return;
+	}
+
+	FPSGameState->TeamAScore = 0;
+	FPSGameState->TeamBScore = 0;
+	FPSGameState->WinningTeamId = -1;
+	FPSGameState->bMatchOver = false;
+	FPSGameState->bMatchStarted = true;
+	FPSGameState->bWaitingForStart = false;
+	FPSGameState->bWaitingForRestart = false;
+	FPSGameState->ReadyPlayerCount = 0;
+	FPSGameState->RemainingTime = MatchTimeSeconds;
+
+	ReadyPlayers.Empty();
+	RestartReadyPlayers.Empty();
+
+	RespawnAllPlayers();
+	RespawnAllWeapons();
+
+	StartMatchTimer();
+}
+
+void AFPSGameModeBase::UpdateReadyCount()
+{
+	AFPSGameState* FPSGameState = GetFPSGameState();
+	if (!FPSGameState)
+	{
+		return;
+	}
+
+	if (FPSGameState->bWaitingForRestart)
+	{
+		FPSGameState->ReadyPlayerCount = RestartReadyPlayers.Num();
+	}
+	else if (FPSGameState->bWaitingForStart)
+	{
+		FPSGameState->ReadyPlayerCount = ReadyPlayers.Num();
+	}
+	else
+	{
+		FPSGameState->ReadyPlayerCount = 0;
+	}
+}
+
+bool AFPSGameModeBase::AreAllPlayersReady(const TSet<TWeakObjectPtr<APlayerController>>& ReadySet) const
+{
+	const int32 TotalPlayers = GameState ? GameState->PlayerArray.Num() : 0;
+	if (TotalPlayers <= 0)
+	{
+		return false;
+	}
+
+	return ReadySet.Num() >= TotalPlayers;
+}
+
+void AFPSGameModeBase::CacheInitialWeaponSpawns()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	InitialWeaponSpawns.Empty();
+	for (TActorIterator<AWeaponBase> It(GetWorld()); It; ++It)
+	{
+		AWeaponBase* Weapon = *It;
+		if (!IsValid(Weapon))
+		{
+			continue;
+		}
+
+		FWeaponSpawnInfo Info;
+		Info.WeaponClass = Weapon->GetClass();
+		Info.Transform = Weapon->GetActorTransform();
+		InitialWeaponSpawns.Add(Info);
+	}
+}
+
+void AFPSGameModeBase::RespawnAllWeapons()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	for (TActorIterator<AWeaponBase> It(GetWorld()); It; ++It)
+	{
+		if (AWeaponBase* Weapon = *It)
+		{
+			Weapon->Destroy();
+		}
+	}
+
+	for (const FWeaponSpawnInfo& Info : InitialWeaponSpawns)
+	{
+		if (!Info.WeaponClass)
+		{
+			continue;
+		}
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		GetWorld()->SpawnActor<AWeaponBase>(Info.WeaponClass, Info.Transform, SpawnParams);
+	}
+}
+
+void AFPSGameModeBase::RespawnAllPlayers()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	PendingRespawnWeapons.Empty();
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (!PC)
+		{
+			continue;
+		}
+
+		if (APawn* Pawn = PC->GetPawn())
+		{
+			Pawn->Destroy();
+		}
+
+		RestartPlayer(PC);
+	}
 }
 
