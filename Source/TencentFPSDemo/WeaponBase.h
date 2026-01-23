@@ -71,6 +71,9 @@ protected:
 	void StopReloadUI();
 	void UpdateAmmoUI();
 	void UpdateReloadUI();
+	void EnsureFireWidget();
+	void DestroyFireWidget();
+	void StartFireWidgetRetry();
 
 	UFUNCTION()
 	void OnRep_CurrentAmmo();
@@ -132,6 +135,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
 	bool bAutoReload;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI")
+	TSubclassOf<UUserWidget> FireWidgetClass;
+
 	UPROPERTY(Transient)
 	UUserWidget* FireWidget;
 
@@ -141,5 +147,6 @@ protected:
 	FTimerHandle FireTimerHandle;
 	FTimerHandle ReloadTimerHandle;
 	FTimerHandle ReloadUITimerHandle;
+	FTimerHandle FireWidgetRetryHandle;
 };
 

@@ -91,6 +91,7 @@ void AWeaponBase::BeginPlay()
 
 	CurrentAmmo = MaxAmmo;
 	UpdateAmmoUI();
+	StartFireWidgetRetry();
 }
 
 void AWeaponBase::OnRep_Owner()
@@ -100,6 +101,11 @@ void AWeaponBase::OnRep_Owner()
 	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 	{
 		SetWeaponVariableOnPawn(OwnerPawn);
+		StartFireWidgetRetry();
+	}
+	else
+	{
+		DestroyFireWidget();
 	}
 }
 
@@ -200,6 +206,8 @@ bool AWeaponBase::EquipToPawn(APawn* InPawn)
 	SetOwner(InPawn);
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
+
+	StartFireWidgetRetry();
 
 	if (PickupSphere)
 	{
@@ -612,6 +620,73 @@ void AWeaponBase::UpdateReloadUI()
 		{
 			CDText->SetText(Text);
 		}
+	}
+}
+
+void AWeaponBase::EnsureFireWidget()
+{
+	if (FireWidget || !FireWidgetClass)
+	{
+		return;
+	}
+
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	FireWidget = CreateWidget<UUserWidget>(PC, FireWidgetClass);
+	if (FireWidget)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(FireWidgetRetryHandle);
+		}
+		FireWidget->AddToViewport();
+		UpdateAmmoUI();
+		UpdateReloadUI();
+	}
+}
+
+void AWeaponBase::DestroyFireWidget()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(FireWidgetRetryHandle);
+	}
+
+	if (FireWidget)
+	{
+		FireWidget->RemoveFromParent();
+		FireWidget = nullptr;
+	}
+}
+
+void AWeaponBase::StartFireWidgetRetry()
+{
+	if (FireWidget || !FireWidgetClass)
+	{
+		return;
+	}
+
+	EnsureFireWidget();
+
+	if (FireWidget)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(FireWidgetRetryHandle);
+		World->GetTimerManager().SetTimer(FireWidgetRetryHandle, this, &AWeaponBase::EnsureFireWidget, 0.2f, true);
 	}
 }
 

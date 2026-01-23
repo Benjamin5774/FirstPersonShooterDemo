@@ -1,5 +1,7 @@
 #include "ProjectileHitEffectComponent.h"
 #include "FPSPlayerState.h"
+#include "DamageEffectInterface.h"
+#include "GameFramework/Character.h"
 #include "HealthComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -64,7 +66,11 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		const float AppliedDamage = FMath::Abs(DamageAmount);
 		HealthComp->ApplyDamage(AppliedDamage, OwnerController);
 
-		if (AFPSPlayerState* OwnerPS = OwnerPawn ? Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState()) : nullptr)
+		if (OwnerController && OwnerController->IsLocalController())
+		{
+			SpawnDamageEffectLocal(OwnerController, OtherActor, -AppliedDamage);
+		}
+		else if (AFPSPlayerState* OwnerPS = OwnerPawn ? Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState()) : nullptr)
 		{
 			OwnerPS->ClientShowDamageNumber(OtherActor, -AppliedDamage, DamageColor, DamageEffectClass);
 		}
@@ -102,6 +108,39 @@ void UProjectileHitEffectComponent::PlayHitSoundForOwner(AController* OwnerContr
 	if (APlayerController* PC = Cast<APlayerController>(OwnerController))
 	{
 		PC->ClientPlaySound(HitSound);
+	}
+}
+
+void UProjectileHitEffectComponent::SpawnDamageEffectLocal(AController* OwnerController, AActor* HitActor, float Damage)
+{
+	if (!DamageEffectClass || !GetWorld() || !HitActor || !OwnerController)
+	{
+		return;
+	}
+
+	FVector SpawnLocation = HitActor->GetActorLocation();
+	if (ACharacter* HitCharacter = Cast<ACharacter>(HitActor))
+	{
+		if (USkeletalMeshComponent* Mesh = HitCharacter->GetMesh())
+		{
+			SpawnLocation = Mesh->GetComponentLocation();
+		}
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = OwnerController;
+	SpawnParams.Instigator = Cast<APawn>(OwnerController->GetPawn());
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AActor* EffectActor = GetWorld()->SpawnActor<AActor>(DamageEffectClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+	if (!EffectActor)
+	{
+		return;
+	}
+
+	if (EffectActor->GetClass()->ImplementsInterface(UDamageEffectInterface::StaticClass()))
+	{
+		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, Damage, DamageColor);
 	}
 }
 

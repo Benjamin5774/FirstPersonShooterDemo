@@ -43,5 +43,6 @@ private:
 
 	bool IsValidHitTarget(APawn* OwnerPawn, APawn* OtherPawn) const;
 	void PlayHitSoundForOwner(AController* OwnerController);
+	void SpawnDamageEffectLocal(AController* OwnerController, AActor* HitActor, float Damage);
 };
 
