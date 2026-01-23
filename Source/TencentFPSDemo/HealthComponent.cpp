@@ -25,6 +25,7 @@ void UHealthComponent::BeginPlay()
 
 	Health = MaxHealth;
 	OnHealthChanged.Broadcast(Health, MaxHealth);
+	RemoveHitEffect();
 }
 
 void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorController)
@@ -80,6 +81,7 @@ void UHealthComponent::HandleDeath(AController* InstigatorController)
 	{
 		return;
 	}
+	RemoveHitEffect();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -97,6 +99,12 @@ void UHealthComponent::HandleDeath(AController* InstigatorController)
 	}
 
 	OwnerCharacter->SetActorEnableCollision(false);
+}
+
+void UHealthComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	RemoveHitEffect();
+	Super::EndPlay(EndPlayReason);
 }
 
 void UHealthComponent::ClientShowHitEffect_Implementation(float Duration)
@@ -138,6 +146,11 @@ void UHealthComponent::ClientShowHitEffect_Implementation(float Duration)
 
 void UHealthComponent::RemoveHitEffect()
 {
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitEffectTimerHandle);
+	}
+
 	if (ActiveHitWidget)
 	{
 		ActiveHitWidget->RemoveFromParent();

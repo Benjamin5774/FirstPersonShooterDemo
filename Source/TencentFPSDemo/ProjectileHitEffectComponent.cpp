@@ -64,7 +64,7 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		const float AppliedDamage = FMath::Abs(DamageAmount);
 		HealthComp->ApplyDamage(AppliedDamage, OwnerController);
 
-		SpawnDamageEffect(OwnerController, Hit.ImpactPoint, AppliedDamage);
+		SpawnDamageEffect(OwnerController, OtherActor, AppliedDamage);
 		PlayHitSoundForOwner(OwnerController);
 		bHasTriggered = true;
 	}
@@ -88,12 +88,14 @@ bool UProjectileHitEffectComponent::IsValidHitTarget(APawn* OwnerPawn, APawn* Ot
 	return true;
 }
 
-void UProjectileHitEffectComponent::SpawnDamageEffect(AController* OwnerController, const FVector& Location, float AppliedDamage)
+void UProjectileHitEffectComponent::SpawnDamageEffect(AController* OwnerController, AActor* HitActor, float AppliedDamage)
 {
-	if (!DamageEffectClass || !GetWorld())
+	if (!DamageEffectClass || !GetWorld() || !HitActor)
 	{
 		return;
 	}
+
+	const FVector Location = HitActor->GetActorLocation();
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = OwnerController;
