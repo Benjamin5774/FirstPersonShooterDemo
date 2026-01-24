@@ -71,6 +71,7 @@ AWeaponBase::AWeaponBase()
 	TraceDistance = 10000.0f;
 	Damage = 25.0f;
 	FireRate = 8.0f;
+	FireSoundVolume = 1.0f;
 	MaxAmmo = 30;
 	CurrentAmmo = MaxAmmo;
 	ReloadTime = 1.2f;
@@ -128,7 +129,7 @@ void AWeaponBase::Fire()
 
 	if (OwnerPawn->IsLocallyControlled() && FireSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation(), FireSoundVolume);
 	}
 
 	if (HasAuthority())

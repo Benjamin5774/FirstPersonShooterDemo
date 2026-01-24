@@ -16,6 +16,7 @@ class TENCENTFPSDEMO_API AFPSHUD : public AHUD
 public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
+	void ShowKillIcon(float Duration);
 
 private:
 	void TryInitWidgets();
@@ -25,6 +26,7 @@ private:
 	void UpdateReplayWidget();
 	void UpdateReadyText(UTextBlock* ReadyText, int32 ReadyCount, int32 TotalPlayers) const;
 	void UpdateInputMode();
+	void HideKillIcon();
 
 	UFUNCTION()
 	void HandleStartButtonClicked();
@@ -57,6 +59,9 @@ private:
 	UTextBlock* GameOverDisplayText;
 
 	UPROPERTY()
+	UUserWidget* KillIconWidget;
+
+	UPROPERTY()
 	UTextBlock* StartReadyText;
 
 	UPROPERTY()
@@ -72,5 +77,8 @@ private:
 	bool bStartWidgetShown = false;
 	bool bReplayWidgetShown = false;
 	bool bUIInputEnabled = false;
+	bool bKillIconVisible = false;
+
+	FTimerHandle KillIconTimerHandle;
 };
 

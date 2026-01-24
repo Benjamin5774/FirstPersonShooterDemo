@@ -95,6 +95,11 @@ void AFPSHUD::TryInitWidgets()
 			}
 		}
 	}
+
+	if (!KillIconWidget && GameModeCDO->GetKillIconWidgetClass())
+	{
+		KillIconWidget = CreateWidget<UUserWidget>(PC, GameModeCDO->GetKillIconWidgetClass());
+	}
 }
 
 void AFPSHUD::UpdateScoreboard()
@@ -294,6 +299,42 @@ void AFPSHUD::HandleRestartButtonClicked()
 	if (AFPSPlayerController* PC = Cast<AFPSPlayerController>(GetOwningPlayerController()))
 	{
 		PC->ServerSetReadyForRestart();
+	}
+}
+
+void AFPSHUD::ShowKillIcon(float Duration)
+{
+	if (!KillIconWidget)
+	{
+		TryInitWidgets();
+	}
+
+	if (!KillIconWidget)
+	{
+		return;
+	}
+
+	if (!KillIconWidget->IsInViewport())
+	{
+		KillIconWidget->AddToViewport();
+	}
+
+	bKillIconVisible = true;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(KillIconTimerHandle);
+		World->GetTimerManager().SetTimer(
+			KillIconTimerHandle, this, &AFPSHUD::HideKillIcon, FMath::Max(0.01f, Duration), false);
+	}
+}
+
+void AFPSHUD::HideKillIcon()
+{
+	if (KillIconWidget && bKillIconVisible)
+	{
+		KillIconWidget->RemoveFromParent();
+		bKillIconVisible = false;
 	}
 }
 

@@ -10,6 +10,7 @@ class UHealthComponent;
 class APawn;
 class UUserWidget;
 class UTextBlock;
+class USoundBase;
 
 UCLASS()
 class TENCENTFPSDEMO_API AWeaponBase : public AActor
@@ -107,6 +108,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Audio")
 	USoundBase* FireSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Audio")
+	float FireSoundVolume;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float TraceDistance;

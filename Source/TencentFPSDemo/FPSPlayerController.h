@@ -15,5 +15,11 @@ public:
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetReadyForRestart();
+
+	UFUNCTION(Client, Reliable)
+	void ClientPlaySound2D(USoundBase* Sound, float Volume);
+
+	UFUNCTION(Client, Reliable)
+	void ClientShowKillIcon(float Duration);
 };
 

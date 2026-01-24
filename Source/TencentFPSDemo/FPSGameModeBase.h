@@ -8,6 +8,7 @@ class AWeaponBase;
 class APlayerStart;
 class UUserWidget;
 class AFPSGameState;
+class USoundBase;
 
 UCLASS()
 class TENCENTFPSDEMO_API AFPSGameModeBase : public AGameModeBase
@@ -32,6 +33,8 @@ public:
 	TSubclassOf<UUserWidget> GetGameOverWidgetClass() const { return GameOverWidgetClass; }
 	TSubclassOf<UUserWidget> GetStartWidgetClass() const { return StartWidgetClass; }
 	TSubclassOf<UUserWidget> GetReplayWidgetClass() const { return ReplayWidgetClass; }
+	TSubclassOf<UUserWidget> GetKillIconWidgetClass() const { return KillIconWidgetClass; }
+	float GetKillIconDuration() const { return KillIconDuration; }
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Match")
@@ -66,6 +69,18 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Match|UI")
 	TSubclassOf<UUserWidget> ReplayWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Match|UI")
+	TSubclassOf<UUserWidget> KillIconWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Match|UI")
+	float KillIconDuration;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Match|Audio")
+	USoundBase* KillSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Match|Audio")
+	float KillSoundVolume;
 
 private:
 	struct FWeaponSpawnInfo

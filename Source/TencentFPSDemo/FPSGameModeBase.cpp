@@ -26,6 +26,8 @@ AFPSGameModeBase::AFPSGameModeBase()
 	bKeepWeaponOnRespawn = false;
 	SpawnCheckRadius = 100.0f;
 	MatchTimeSeconds = 300;
+	KillSoundVolume = 1.0f;
+	KillIconDuration = 1.0f;
 }
 
 void AFPSGameModeBase::BeginPlay()
@@ -184,6 +186,22 @@ void AFPSGameModeBase::OnPlayerKilled(AController* Killer, AController* Victim)
 				}
 				// TODO: add team system for more players/teams.
 			}
+		}
+	}
+
+	if (KillSound && Killer)
+	{
+		if (AFPSPlayerController* KillerPC = Cast<AFPSPlayerController>(Killer))
+		{
+			KillerPC->ClientPlaySound2D(KillSound, KillSoundVolume);
+		}
+	}
+
+	if (Killer)
+	{
+		if (AFPSPlayerController* KillerPC = Cast<AFPSPlayerController>(Killer))
+		{
+			KillerPC->ClientShowKillIcon(KillIconDuration);
 		}
 	}
 }
