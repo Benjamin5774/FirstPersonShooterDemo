@@ -219,6 +219,8 @@ void AFPSGameModeBase::RequestRespawn(AController* Controller, APawn* DeadPawn)
 		{
 			if (AWeaponBase* Weapon = FindWeaponFromPawn(DeadPawn))
 			{
+				// 在隐藏武器前，先清理widget
+				Weapon->CleanupFireWidget();
 				PendingRespawnWeapons.Add(Controller, Weapon);
 				Weapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 				Weapon->SetActorHiddenInGame(true);
@@ -229,6 +231,8 @@ void AFPSGameModeBase::RequestRespawn(AController* Controller, APawn* DeadPawn)
 		{
 			if (AWeaponBase* Weapon = FindWeaponFromPawn(DeadPawn))
 			{
+				// 在销毁武器前，先清理widget（确保客户端也能清理）
+				Weapon->CleanupFireWidget();
 				Weapon->Destroy();
 			}
 		}

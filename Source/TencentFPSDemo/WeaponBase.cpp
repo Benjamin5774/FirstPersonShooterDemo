@@ -107,6 +107,14 @@ void AWeaponBase::BeginPlay()
 	}
 }
 
+void AWeaponBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// 在武器被销毁前，确保清理widget
+	DestroyFireWidget();
+	
+	Super::EndPlay(EndPlayReason);
+}
+
 void AWeaponBase::OnRep_Owner()
 {
 	Super::OnRep_Owner();
@@ -118,6 +126,7 @@ void AWeaponBase::OnRep_Owner()
 	}
 	else
 	{
+		// Owner被移除时，清理widget（客户端也会收到这个通知）
 		DestroyFireWidget();
 	}
 }
@@ -698,6 +707,17 @@ void AWeaponBase::DestroyFireWidget()
 }
 
 void AWeaponBase::CleanupFireWidget()
+{
+	DestroyFireWidget();
+	
+	// 如果是服务器，通知所有客户端也清理widget
+	if (HasAuthority())
+	{
+		ClientCleanupFireWidget();
+	}
+}
+
+void AWeaponBase::ClientCleanupFireWidget_Implementation()
 {
 	DestroyFireWidget();
 }

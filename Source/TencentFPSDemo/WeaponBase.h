@@ -40,6 +40,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void OnRep_Owner() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -89,6 +90,10 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastAssignWeaponToPawn(APawn* InPawn);
+
+	// 客户端清理widget的RPC（用于确保客户端在死亡时也能清理widget）
+	UFUNCTION(Client, Reliable)
+	void ClientCleanupFireWidget();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* WeaponMesh;
