@@ -92,7 +92,19 @@ void AWeaponBase::BeginPlay()
 
 	CurrentAmmo = MaxAmmo;
 	UpdateAmmoUI();
-	StartFireWidgetRetry();
+	
+	// 只有在武器已经有owner且owner是本地控制的pawn时才创建widget
+	// 这样可以避免重新开始游戏时创建上一局游戏的widget
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+	{
+		StartFireWidgetRetry();
+	}
+	else
+	{
+		// 确保没有残留的widget
+		DestroyFireWidget();
+	}
 }
 
 void AWeaponBase::OnRep_Owner()
@@ -204,10 +216,14 @@ bool AWeaponBase::EquipToPawn(APawn* InPawn)
 		return false;
 	}
 
+	// 在设置owner前，先清理可能存在的旧widget
+	DestroyFireWidget();
+
 	SetOwner(InPawn);
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
 
+	// 玩家装备武器后，创建widget
 	StartFireWidgetRetry();
 
 	if (PickupSphere)
@@ -298,9 +314,15 @@ bool AWeaponBase::TryPickup(APawn* InPawn)
 		return false;
 	}
 
+	// 在设置owner前，先清理可能存在的旧widget
+	DestroyFireWidget();
+
 	SetOwner(InPawn);
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
+
+	// 玩家捡起武器后，创建widget
+	StartFireWidgetRetry();
 
 	if (PickupSphere)
 	{
@@ -673,6 +695,11 @@ void AWeaponBase::DestroyFireWidget()
 		FireWidget->RemoveFromParent();
 		FireWidget = nullptr;
 	}
+}
+
+void AWeaponBase::CleanupFireWidget()
+{
+	DestroyFireWidget();
 }
 
 void AWeaponBase::StartFireWidgetRetry()

@@ -76,6 +76,11 @@ protected:
 	void DestroyFireWidget();
 	void StartFireWidgetRetry();
 
+public:
+	// 清理widget的公共接口，用于游戏重新开始时清理所有武器的widget
+	UFUNCTION(BlueprintCallable, Category = "Weapon|UI")
+	void CleanupFireWidget();
+
 	UFUNCTION()
 	void OnRep_CurrentAmmo();
 

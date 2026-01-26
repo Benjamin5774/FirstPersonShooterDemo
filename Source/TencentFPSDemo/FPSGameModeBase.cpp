@@ -602,10 +602,13 @@ void AFPSGameModeBase::RespawnAllWeapons()
 		return;
 	}
 
+	// 在销毁武器前，先清理所有武器的widget，防止上一局游戏的widget残留
 	for (TActorIterator<AWeaponBase> It(GetWorld()); It; ++It)
 	{
 		if (AWeaponBase* Weapon = *It)
 		{
+			// 清理widget，确保不会残留上一局游戏的widget
+			Weapon->CleanupFireWidget();
 			Weapon->Destroy();
 		}
 	}
