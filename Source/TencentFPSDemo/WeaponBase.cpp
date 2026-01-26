@@ -248,7 +248,12 @@ void AWeaponBase::ServerFire_Implementation()
 		SpawnParams.Instigator = OwnerPawn;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-		GetWorld()->SpawnActor<AActor>(BulletClass, MuzzleLocation, AimRotation, SpawnParams);
+		AActor* SpawnedBullet = GetWorld()->SpawnActor<AActor>(BulletClass, MuzzleLocation, AimRotation, SpawnParams);
+		if (SpawnedBullet)
+		{
+			// 设置子弹生命周期，5秒后自动销毁（防止子弹永远不消失）
+			SpawnedBullet->SetLifeSpan(5.0f);
+		}
 	}
 
 	if (!AimDir.IsNearlyZero())

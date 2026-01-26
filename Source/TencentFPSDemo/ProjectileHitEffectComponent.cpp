@@ -54,29 +54,37 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 	}
 
 	APawn* OtherPawn = Cast<APawn>(OtherActor);
-	if (!IsValidHitTarget(OwnerPawn, OtherPawn))
+	bool bIsValidTarget = IsValidHitTarget(OwnerPawn, OtherPawn);
+
+	if (bIsValidTarget)
 	{
-		return;
+		if (UHealthComponent* HealthComp = OtherActor->FindComponentByClass<UHealthComponent>())
+		{
+			AController* OwnerController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
+			UE_LOG(LogTemp, Log, TEXT("子弹命中触发扣血"));
+			const float AppliedDamage = FMath::Abs(DamageAmount);
+			HealthComp->ApplyDamage(AppliedDamage, OwnerController);
+
+			if (OwnerController && OwnerController->IsLocalController())
+			{
+				SpawnDamageEffectLocal(OwnerController, OtherActor, -AppliedDamage);
+			}
+			else if (AFPSPlayerState* OwnerPS = OwnerPawn ? Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState()) : nullptr)
+			{
+				OwnerPS->ClientShowDamageNumber(OtherActor, -AppliedDamage, DamageColor, DamageEffectClass);
+			}
+
+			PlayHitSoundForOwner(OwnerController);
+			bHasTriggered = true;
+		}
 	}
 
-	if (UHealthComponent* HealthComp = OtherActor->FindComponentByClass<UHealthComponent>())
+	// 无论是否命中有效目标，碰撞后都应该销毁子弹，防止子弹在场景中弹跳
+	// 使用延迟销毁，让蓝图事件处理完成后再销毁，避免访问已销毁的组件
+	if (SelfActor && SelfActor->HasAuthority())
 	{
-		AController* OwnerController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
-		UE_LOG(LogTemp, Log, TEXT("子弹命中触发扣血"));
-		const float AppliedDamage = FMath::Abs(DamageAmount);
-		HealthComp->ApplyDamage(AppliedDamage, OwnerController);
-
-		if (OwnerController && OwnerController->IsLocalController())
-		{
-			SpawnDamageEffectLocal(OwnerController, OtherActor, -AppliedDamage);
-		}
-		else if (AFPSPlayerState* OwnerPS = OwnerPawn ? Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState()) : nullptr)
-		{
-			OwnerPS->ClientShowDamageNumber(OtherActor, -AppliedDamage, DamageColor, DamageEffectClass);
-		}
-
-		PlayHitSoundForOwner(OwnerController);
-		bHasTriggered = true;
+		// 延迟一帧销毁，确保蓝图事件处理完成
+		SelfActor->SetLifeSpan(0.01f);
 	}
 }
 
