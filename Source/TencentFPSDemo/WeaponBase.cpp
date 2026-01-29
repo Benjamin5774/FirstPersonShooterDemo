@@ -6,8 +6,6 @@
 #include "Components/TextBlock.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
-#include "Camera/CameraShakeBase.h"
-#include "Camera/PlayerCameraManager.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
@@ -186,17 +184,11 @@ void AWeaponBase::ApplyRecoil()
 		return;
 	}
 
-	// 视角后坐力：准星上抬（负 Pitch）、可选水平偏移
+	// 视角后坐力：准星上抬（负 Pitch）、可选水平偏移；相机震动由蓝图实现
 	if (RecoilPitch > 0.0f || RecoilYaw != 0.0f)
 	{
 		PC->AddPitchInput(-RecoilPitch);
 		PC->AddYawInput(RecoilYaw);
-	}
-
-	// 相机震动（屏幕抖动）
-	if (RecoilCameraShakeClass && PC->PlayerCameraManager)
-	{
-		PC->PlayerCameraManager->StartCameraShake(RecoilCameraShakeClass);
 	}
 }
 

@@ -11,7 +11,6 @@ class APawn;
 class UUserWidget;
 class UTextBlock;
 class USoundBase;
-class UCameraShakeBase;
 
 UCLASS()
 class TENCENTFPSDEMO_API AWeaponBase : public AActor
@@ -78,7 +77,7 @@ protected:
 	void DestroyFireWidget();
 	void StartFireWidgetRetry();
 
-	/** 仅本地控制的玩家开火时调用：相机震动 + 视角后坐力 */
+	/** 仅本地控制的玩家开火时调用：视角后坐力（相机震动由蓝图实现） */
 	void ApplyRecoil();
 
 public:
@@ -134,10 +133,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Fire")
 	float FireRate;
-
-	/** 开火时播放的相机震动（可选，不设则只做视角后坐力） */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Recoil")
-	TSubclassOf<UCameraShakeBase> RecoilCameraShakeClass;
 
 	/** 每发子弹视角上抬角度（度），典型 0.3~1.0 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Recoil", meta = (ClampMin = "0.0", UIMin = "0.0"))
