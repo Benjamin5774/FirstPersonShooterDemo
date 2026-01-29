@@ -100,6 +100,7 @@ void AWeaponBase::BeginPlay()
 	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
 	{
 		StartFireWidgetRetry();
+		EnsureCrosshairWidget();
 	}
 	else
 	{
@@ -124,6 +125,7 @@ void AWeaponBase::OnRep_Owner()
 	{
 		SetWeaponVariableOnPawn(OwnerPawn);
 		StartFireWidgetRetry();
+		EnsureCrosshairWidget();
 	}
 	else
 	{
@@ -225,7 +227,7 @@ void AWeaponBase::StartReload()
 {
 	if (HasAuthority())
 	{
-		StartReloadInternal();
+		StartReloadInternal(false); // 玩家主动按键填弹
 		return;
 	}
 
@@ -237,6 +239,22 @@ void AWeaponBase::SetFireWidget(UUserWidget* InWidget)
 	FireWidget = InWidget;
 	UpdateAmmoUI();
 	UpdateReloadUI();
+}
+
+void AWeaponBase::SetCrosshairWidget(UUserWidget* InWidget)
+{
+	CrosshairWidget = InWidget;
+	if (CrosshairWidget)
+	{
+		APawn* OwnerPawn = Cast<APawn>(GetOwner());
+		if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+		{
+			if (!CrosshairWidget->IsInViewport())
+			{
+				CrosshairWidget->AddToViewport();
+			}
+		}
+	}
 }
 
 bool AWeaponBase::EquipToPawn(APawn* InPawn)
@@ -282,7 +300,7 @@ void AWeaponBase::ServerFire_Implementation()
 	{
 		if (bAutoReload && CurrentAmmo <= 0)
 		{
-			StartReloadInternal();
+			StartReloadInternal(true); // 无弹时触发的自动填弹，填完后不自动开火
 		}
 		return;
 	}
@@ -316,7 +334,7 @@ void AWeaponBase::ServerFire_Implementation()
 
 void AWeaponBase::ServerStartReload_Implementation()
 {
-	StartReloadInternal();
+	StartReloadInternal(false); // 玩家主动按键填弹，填完后可恢复开火
 }
 
 void AWeaponBase::OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -357,8 +375,9 @@ bool AWeaponBase::TryPickup(APawn* InPawn)
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
 
-	// 玩家捡起武器后，创建widget
+	// 玩家捡起武器后，创建 widget 和准星
 	StartFireWidgetRetry();
+	EnsureCrosshairWidget();
 
 	if (PickupSphere)
 	{
@@ -592,17 +611,18 @@ void AWeaponBase::ConsumeAmmo()
 
 	if (bAutoReload && CurrentAmmo <= 0)
 	{
-		StartReloadInternal();
+		StartReloadInternal(true);
 	}
 }
 
-void AWeaponBase::StartReloadInternal()
+void AWeaponBase::StartReloadInternal(bool bTriggeredByAuto)
 {
 	if (bIsReloading || MaxAmmo <= 0 || ReloadTime <= 0.0f)
 	{
 		return;
 	}
 
+	bReloadTriggeredByAuto = bTriggeredByAuto;
 	bIsReloading = true;
 	ReloadEndTime = GetWorld() ? GetWorld()->GetTimeSeconds() + ReloadTime : 0.0f;
 	StartReloadUI();
@@ -622,7 +642,8 @@ void AWeaponBase::FinishReload()
 	StopReloadUI();
 	UpdateAmmoUI();
 
-	if (bWantsToFire)
+	// 仅当本次填弹是玩家主动按键触发时才在填弹完成后恢复开火；自动填弹（打空弹匣）后不自动开火
+	if (bWantsToFire && !bReloadTriggeredByAuto)
 	{
 		StartFire();
 	}
@@ -717,6 +738,8 @@ void AWeaponBase::EnsureFireWidget()
 		UpdateAmmoUI();
 		UpdateReloadUI();
 	}
+
+	EnsureCrosshairWidget();
 }
 
 void AWeaponBase::DestroyFireWidget()
@@ -730,6 +753,47 @@ void AWeaponBase::DestroyFireWidget()
 	{
 		FireWidget->RemoveFromParent();
 		FireWidget = nullptr;
+	}
+
+	DestroyCrosshairWidget();
+}
+
+void AWeaponBase::EnsureCrosshairWidget()
+{
+	if (CrosshairWidget)
+	{
+		return;
+	}
+	if (!CrosshairWidgetClass)
+	{
+		return;
+	}
+
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	CrosshairWidget = CreateWidget<UUserWidget>(PC, CrosshairWidgetClass);
+	if (CrosshairWidget)
+	{
+		CrosshairWidget->AddToViewport();
+	}
+}
+
+void AWeaponBase::DestroyCrosshairWidget()
+{
+	if (CrosshairWidget)
+	{
+		CrosshairWidget->RemoveFromParent();
+		CrosshairWidget = nullptr;
 	}
 }
 
@@ -757,6 +821,7 @@ void AWeaponBase::StartFireWidgetRetry()
 	}
 
 	EnsureFireWidget();
+	EnsureCrosshairWidget();
 
 	if (FireWidget)
 	{

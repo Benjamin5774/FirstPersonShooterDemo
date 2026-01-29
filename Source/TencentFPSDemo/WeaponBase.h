@@ -35,6 +35,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	void SetFireWidget(UUserWidget* InWidget);
 
+	/** 设置准星 Widget（可与枪口方向对齐显示在屏幕中心） */
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void SetCrosshairWidget(UUserWidget* InWidget);
+
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipToPawn(APawn* InPawn);
 
@@ -68,7 +72,8 @@ protected:
 	float GetFireInterval() const;
 	void ConsumeAmmo();
 	void FinishReload();
-	void StartReloadInternal();
+	/** bTriggeredByAuto: 是否为打空弹匣触发的自动填弹（为 true 时填弹完成后不会自动恢复开火） */
+	void StartReloadInternal(bool bTriggeredByAuto = false);
 	void StartReloadUI();
 	void StopReloadUI();
 	void UpdateAmmoUI();
@@ -76,6 +81,8 @@ protected:
 	void EnsureFireWidget();
 	void DestroyFireWidget();
 	void StartFireWidgetRetry();
+	void EnsureCrosshairWidget();
+	void DestroyCrosshairWidget();
 
 	/** 仅本地控制的玩家开火时调用：视角后坐力（相机震动由蓝图实现） */
 	void ApplyRecoil();
@@ -157,14 +164,24 @@ public:
 	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|Ammo")
 	bool bWantsToFire;
 
+	/** 当前这次填弹是否由自动填弹触发（打空弹匣）；填弹完成后若为 true 则不自动恢复开火 */
+	bool bReloadTriggeredByAuto = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
 	bool bAutoReload;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI")
 	TSubclassOf<UUserWidget> FireWidgetClass;
 
+	/** 准星 Widget 类（可选）。创建后会以屏幕中心显示，与枪口射线方向对齐 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI")
+	TSubclassOf<UUserWidget> CrosshairWidgetClass;
+
 	UPROPERTY(Transient)
 	UUserWidget* FireWidget;
+
+	UPROPERTY(Transient)
+	UUserWidget* CrosshairWidget;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|Ammo")
 	float ReloadEndTime;
