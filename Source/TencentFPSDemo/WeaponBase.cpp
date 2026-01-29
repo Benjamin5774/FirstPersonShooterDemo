@@ -78,6 +78,7 @@ AWeaponBase::AWeaponBase()
 	ReloadTime = 1.2f;
 	bIsReloading = false;
 	bWantsToFire = false;
+	bIsFiring = false;
 	bAutoReload = true;
 	ReloadEndTime = 0.0f;
 }
@@ -136,6 +137,8 @@ void AWeaponBase::OnRep_Owner()
 
 void AWeaponBase::Fire()
 {
+	bIsFiring = false;
+
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn)
 	{
@@ -150,6 +153,9 @@ void AWeaponBase::Fire()
 		}
 		return;
 	}
+
+	// 有子弹且通过 CanFire，本帧会打出子弹
+	bIsFiring = true;
 
 	if (OwnerPawn->IsLocallyControlled())
 	{
@@ -217,6 +223,7 @@ void AWeaponBase::StartFire()
 void AWeaponBase::StopFire()
 {
 	bWantsToFire = false;
+	bIsFiring = false;
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(FireTimerHandle);

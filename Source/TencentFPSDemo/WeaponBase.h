@@ -141,6 +141,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Fire")
 	float FireRate;
 
+	/** 当前帧是否正在打出子弹（有子弹且成功开火时为 true，否则为 false；蓝图可读） */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Weapon|Fire")
+	bool bIsFiring = false;
+
 	/** 每发子弹视角上抬角度（度），典型 0.3~1.0 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Recoil", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float RecoilPitch = 0.5f;
