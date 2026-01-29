@@ -6,8 +6,11 @@
 #include "Components/TextBlock.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
+#include "Camera/CameraShakeBase.h"
+#include "Camera/PlayerCameraManager.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
@@ -148,9 +151,13 @@ void AWeaponBase::Fire()
 		return;
 	}
 
-	if (OwnerPawn->IsLocallyControlled() && FireSound)
+	if (OwnerPawn->IsLocallyControlled())
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation(), FireSoundVolume);
+		if (FireSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation(), FireSoundVolume);
+		}
+		ApplyRecoil();
 	}
 
 	if (HasAuthority())
@@ -162,6 +169,34 @@ void AWeaponBase::Fire()
 	if (OwnerPawn->IsLocallyControlled())
 	{
 		ServerFire();
+	}
+}
+
+void AWeaponBase::ApplyRecoil()
+{
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	// 视角后坐力：准星上抬（负 Pitch）、可选水平偏移
+	if (RecoilPitch > 0.0f || RecoilYaw != 0.0f)
+	{
+		PC->AddPitchInput(-RecoilPitch);
+		PC->AddYawInput(RecoilYaw);
+	}
+
+	// 相机震动（屏幕抖动）
+	if (RecoilCameraShakeClass && PC->PlayerCameraManager)
+	{
+		PC->PlayerCameraManager->StartCameraShake(RecoilCameraShakeClass);
 	}
 }
 
