@@ -65,6 +65,24 @@ void AFPSPlayerController::SetupInputComponent()
 	{
 		// 使用BindKey直接绑定按键
 		InputComponent->BindKey(ReloadKey, IE_Pressed, this, &AFPSPlayerController::OnReloadPressed);
+		InputComponent->BindKey(ADSKey, IE_Pressed, this, &AFPSPlayerController::OnADSPressed);
+		InputComponent->BindKey(ADSKey, IE_Released, this, &AFPSPlayerController::OnADSReleased);
+	}
+}
+
+void AFPSPlayerController::OnADSPressed()
+{
+	if (AWeaponBase* Weapon = GetCurrentWeapon())
+	{
+		Weapon->SetADS(true);
+	}
+}
+
+void AFPSPlayerController::OnADSReleased()
+{
+	if (AWeaponBase* Weapon = GetCurrentWeapon())
+	{
+		Weapon->SetADS(false);
 	}
 }
 

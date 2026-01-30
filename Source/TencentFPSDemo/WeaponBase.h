@@ -59,9 +59,18 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weapon|Ammo")
 	bool HasAmmo() const;
 
+	/** 开镜（瞄准）：true 进入 ADS，false 回到腰射；按住式开镜由输入在 Pressed/Released 时调用 */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|ADS")
+	void SetADS(bool bAiming);
+
+	/** 当前是否处于开镜状态（蓝图可读） */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weapon|ADS")
+	bool IsADS() const { return bIsADS; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void OnRep_Owner() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -105,6 +114,9 @@ protected:
 
 	/** 仅本地控制的玩家开火时调用：视角后坐力（相机震动由蓝图实现） */
 	void ApplyRecoil();
+
+	/** 方案 A：Tick 内根据 ADSAlpha 插值 HipTransform <-> ADSTransform，设置 WeaponMesh 所在 Actor 的 RelativeTransform */
+	void UpdateADSTransform(float DeltaTime);
 
 public:
 	// 清理widget的公共接口，用于游戏重新开始时清理所有武器的widget
@@ -215,6 +227,35 @@ public:
 	/** 命中/爆头准星显示多久后恢复为默认（秒） */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI|Crosshair", meta = (ClampMin = "0.05", UIMin = "0.05"))
 	float CrosshairResetTime;
+
+	// ---------- 开镜（ADS）方案 A：插值枪 Mesh ----------
+	/** 腰射时武器相对附着点的 Transform（装备时从 Attach 结果写入，用于插值起点） */
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|ADS", meta = (AllowPrivateAccess = "true"))
+	FTransform HipTransform;
+
+	/** 开镜时相对腰射的偏移（与 HipTransform 相乘得到 ADSTransform；可在蓝图/编辑器中调“枪靠近眼睛”） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|ADS")
+	FTransform ADSRelativeOffset;
+
+	/** 开镜时枪口位置偏移（武器本地空间：X 前 / Y 右 / Z 上），用于 GetMuzzleLocation() 在开镜后的修正，可手动调整本地端开镜后的枪口位置 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|ADS")
+	FVector ADSMuzzleOffset = FVector::ZeroVector;
+
+	/** 开镜插值速度（Alpha 向 0/1 靠近的速率） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|ADS", meta = (ClampMin = "0.1", UIMin = "0.1"))
+	float ADSSpeed = 10.0f;
+
+	/** 当前是否请求开镜（由输入 SetADS 设置）；复制到服务器以便 GetMuzzleLocation 在开镜时应用 ADSMuzzleOffset */
+	UPROPERTY(Replicated, VisibleInstanceOnly, Category = "Weapon|ADS", meta = (AllowPrivateAccess = "true"))
+	bool bIsADS = false;
+
+	/** 开镜插值系数 0=腰射 1=开镜，Tick 中插值 */
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|ADS", meta = (AllowPrivateAccess = "true"))
+	float ADSAlpha = 0.0f;
+
+	/** 是否已写入 HipTransform（服务器在 AttachToPawn 写入；客户端首次 Tick 从当前相对变换捕获） */
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|ADS", meta = (AllowPrivateAccess = "true"))
+	bool bHipTransformCaptured = false;
 
 	UPROPERTY(Transient)
 	UUserWidget* FireWidget;

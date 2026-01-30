@@ -56,7 +56,7 @@ namespace
 
 AWeaponBase::AWeaponBase()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 
 	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
@@ -84,6 +84,12 @@ AWeaponBase::AWeaponBase()
 	bAutoReload = true;
 	ReloadEndTime = 0.0f;
 	CrosshairResetTime = 0.2f;
+	ADSAlpha = 0.0f;
+	bIsADS = false;
+	// ADSRelativeOffset 默认：枪向相机方向靠一点（按常见第一人称：前向为 X，可设为负 X + 小旋转）
+	ADSRelativeOffset.SetLocation(FVector(-15.0f, 0.0f, -5.0f));
+	ADSRelativeOffset.SetRotation(FQuat(FRotator(-5.0f, 0.0f, 0.0f)));
+	ADSRelativeOffset.SetScale3D(FVector::OneVector);
 }
 
 void AWeaponBase::BeginPlay()
@@ -136,6 +142,53 @@ void AWeaponBase::OnRep_Owner()
 		// Owner被移除时，清理widget（客户端也会收到这个通知）
 		DestroyFireWidget();
 	}
+}
+
+void AWeaponBase::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn)
+	{
+		bHipTransformCaptured = false; // 失去 Owner 时重置，下次装备时重新捕获
+		return;
+	}
+	if (OwnerPawn->IsLocallyControlled())
+	{
+		UpdateADSTransform(DeltaTime);
+	}
+}
+
+void AWeaponBase::SetADS(bool bAiming)
+{
+	bIsADS = bAiming;
+}
+
+void AWeaponBase::UpdateADSTransform(float DeltaTime)
+{
+	USceneComponent* Root = GetRootComponent();
+	if (!Root)
+	{
+		return;
+	}
+
+	// 客户端不会执行 AttachToPawn，HipTransform 未设置；用当前复制下来的相对变换作为腰射姿态
+	if (!bHipTransformCaptured)
+	{
+		HipTransform = Root->GetRelativeTransform();
+		bHipTransformCaptured = true;
+	}
+
+	const float TargetAlpha = bIsADS ? 1.0f : 0.0f;
+	ADSAlpha = FMath::FInterpTo(ADSAlpha, TargetAlpha, DeltaTime, ADSSpeed);
+
+	const FTransform ADSTransform = HipTransform * ADSRelativeOffset;
+	FTransform CurrentTransform;
+	CurrentTransform.SetTranslation(FMath::Lerp(HipTransform.GetTranslation(), ADSTransform.GetTranslation(), ADSAlpha));
+	CurrentTransform.SetRotation(FQuat::Slerp(HipTransform.GetRotation(), ADSTransform.GetRotation(), ADSAlpha));
+	CurrentTransform.SetScale3D(FMath::Lerp(HipTransform.GetScale3D(), ADSTransform.GetScale3D(), ADSAlpha));
+	SetActorRelativeTransform(CurrentTransform, false, nullptr, ETeleportType::None);
 }
 
 void AWeaponBase::Fire()
@@ -549,6 +602,7 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 
 		const FTransform DesiredRelative = WeaponGripLocal.Inverse();
 		SetActorRelativeTransform(DesiredRelative, false, nullptr, ETeleportType::TeleportPhysics);
+		HipTransform = DesiredRelative;
 	}
 	else
 	{
@@ -559,7 +613,14 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 			true);
 		const FName SocketName = GrabPointName.IsNone() ? NAME_None : GrabPointName;
 		AttachToComponent(PawnMesh, AttachRules, SocketName);
+		if (USceneComponent* Root = GetRootComponent())
+		{
+			HipTransform = Root->GetRelativeTransform();
+		}
 	}
+	ADSAlpha = 0.0f;
+	bIsADS = false;
+	bHipTransformCaptured = true; // 服务器在本路径已设置 HipTransform
 }
 
 void AWeaponBase::AssignWeaponToPawn(APawn* InPawn)
@@ -606,12 +667,22 @@ void AWeaponBase::MulticastAssignWeaponToPawn_Implementation(APawn* InPawn)
 
 FVector AWeaponBase::GetMuzzleLocation() const
 {
+	FVector MuzzleLoc;
 	if (WeaponMesh && !FireSocketName.IsNone())
 	{
-		return WeaponMesh->GetSocketLocation(FireSocketName);
+		MuzzleLoc = WeaponMesh->GetSocketLocation(FireSocketName);
+	}
+	else
+	{
+		MuzzleLoc = WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
 	}
 
-	return WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
+	// 开镜时应用可调偏移（武器本地空间：X 前 Y 右 Z 上），本地端与服务器均使用，便于手动调整开镜后枪口位置
+	if (bIsADS && WeaponMesh && !ADSMuzzleOffset.IsNearlyZero())
+	{
+		MuzzleLoc += WeaponMesh->GetComponentQuat().RotateVector(ADSMuzzleOffset);
+	}
+	return MuzzleLoc;
 }
 
 FRotator AWeaponBase::GetAimRotation() const
@@ -981,5 +1052,6 @@ void AWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 	DOREPLIFETIME(AWeaponBase, CurrentAmmo);
 	DOREPLIFETIME(AWeaponBase, bIsReloading);
+	DOREPLIFETIME(AWeaponBase, bIsADS);
 }
 
