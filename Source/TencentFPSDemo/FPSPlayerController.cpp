@@ -9,6 +9,8 @@
 #include "Components/InputComponent.h"
 #include "EngineUtils.h"
 
+//Server RPC: mark player ready for match start.
+//服务器 RPC：标记玩家准备开始比赛。
 void AFPSPlayerController::ServerSetReadyForStart_Implementation()
 {
 	if (UWorld* World = GetWorld())
@@ -49,9 +51,10 @@ void AFPSPlayerController::ClientShowKillIcon_Implementation(float Duration)
 	}
 }
 
+//Reload key defaults to E; ADS key to RightMouseButton.
+//换弹键默认 E；开镜键默认右键。
 AFPSPlayerController::AFPSPlayerController()
 {
-	// 换弹键为E
 	ReloadKey = EKeys::E;
 }
 
@@ -61,7 +64,6 @@ void AFPSPlayerController::SetupInputComponent()
 
 	if (InputComponent)
 	{
-
 		InputComponent->BindKey(ReloadKey, IE_Pressed, this, &AFPSPlayerController::OnReloadPressed);
 		InputComponent->BindKey(ADSKey, IE_Pressed, this, &AFPSPlayerController::OnADSPressed);
 		InputComponent->BindKey(ADSKey, IE_Released, this, &AFPSPlayerController::OnADSReleased);
@@ -110,7 +112,6 @@ AWeaponBase* AFPSPlayerController::GetCurrentWeapon() const
 				UObject* WeaponObj = ObjProp->GetObjectPropertyValue_InContainer(ControlledPawn);
 				if (AWeaponBase* Weapon = Cast<AWeaponBase>(WeaponObj))
 				{
-					
 					if (Weapon->GetOwner() == ControlledPawn)
 					{
 						return Weapon;
@@ -163,4 +164,3 @@ AWeaponBase* AFPSPlayerController::GetCurrentWeapon() const
 
 	return nullptr;
 }
-

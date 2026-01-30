@@ -119,7 +119,6 @@ void AWeaponBase::BeginPlay()
 void AWeaponBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	DestroyFireWidget();
-	
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -146,7 +145,7 @@ void AWeaponBase::Tick(float DeltaTime)
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn)
 	{
-		bHipTransformCaptured = false; 
+		bHipTransformCaptured = false;
 		return;
 	}
 	if (OwnerPawn->IsLocallyControlled())
@@ -155,6 +154,8 @@ void AWeaponBase::Tick(float DeltaTime)
 	}
 }
 
+//Toggle ADS state; UpdateADSTransform interpolates weapon pose in Tick.
+//切换开镜状态；UpdateADSTransform 在 Tick 中插值武器姿态。
 void AWeaponBase::SetADS(bool bAiming)
 {
 	bIsADS = bAiming;
@@ -168,6 +169,8 @@ void AWeaponBase::UpdateADSTransform(float DeltaTime)
 		return;
 	}
 
+	//Client captures current relative transform as hip base (server sets in AttachToPawn).
+	//客户端以当前相对变换作为腰射基准（服务器在 AttachToPawn 中设置）。
 	if (!bHipTransformCaptured)
 	{
 		HipTransform = Root->GetRelativeTransform();
@@ -227,6 +230,8 @@ void AWeaponBase::Fire()
 	}
 }
 
+//View recoil: AddPitchInput/AddYawInput; camera shake done in Blueprint.
+//视角后坐力：AddPitchInput/AddYawInput；相机震动由蓝图实现。
 void AWeaponBase::ApplyRecoil()
 {
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
@@ -278,12 +283,13 @@ void AWeaponBase::StopFire()
 	}
 }
 
+//Player-initiated reload; client proxies to ServerStartReload.
+//玩家主动填弹；客户端代理到 ServerStartReload。
 void AWeaponBase::StartReload()
 {
-	// 玩家主动按键填弹
 	if (HasAuthority())
 	{
-		StartReloadInternal(false); 
+		StartReloadInternal(false);
 		return;
 	}
 
@@ -312,7 +318,6 @@ void AWeaponBase::SetCrosshairState(ECrosshairState State)
 
 void AWeaponBase::SetCrosshairStateInternal(ECrosshairState State)
 {
-
 	if (State == ECrosshairState::Hit && !CrosshairHitWidget)
 	{
 		State = ECrosshairState::Default;
@@ -415,12 +420,10 @@ bool AWeaponBase::EquipToPawn(APawn* InPawn)
 	}
 
 	DestroyFireWidget();
-
 	SetOwner(InPawn);
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
 
-	// 玩家装备武器后，创建widget
 	StartFireWidgetRetry();
 
 	if (PickupSphere)
@@ -431,6 +434,8 @@ bool AWeaponBase::EquipToPawn(APawn* InPawn)
 	return true;
 }
 
+//Server-authoritative fire: consume ammo, spawn projectile, line trace, update crosshair.
+//服务器权威开火：消耗弹药、生成子弹、射线检测、更新准星。
 void AWeaponBase::ServerFire_Implementation()
 {
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
@@ -476,9 +481,11 @@ void AWeaponBase::ServerFire_Implementation()
 
 void AWeaponBase::ServerStartReload_Implementation()
 {
-	StartReloadInternal(false); 
+	StartReloadInternal(false);
 }
 
+//Server-only: overlap triggers pickup attempt.
+//仅服务器：重叠触发拾取尝试。
 void AWeaponBase::OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
@@ -511,7 +518,6 @@ bool AWeaponBase::TryPickup(APawn* InPawn)
 	}
 
 	DestroyFireWidget();
-
 	SetOwner(InPawn);
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
@@ -665,7 +671,8 @@ FVector AWeaponBase::GetMuzzleLocation() const
 		MuzzleLoc = WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
 	}
 
-	// 开镜时应用偏移
+	//Apply ADS muzzle offset in weapon local space for accurate aim.
+	//开镜时应用武器本地空间枪口偏移以保证瞄准精度。
 	if (bIsADS && WeaponMesh && !ADSMuzzleOffset.IsNearlyZero())
 	{
 		MuzzleLoc += WeaponMesh->GetComponentQuat().RotateVector(ADSMuzzleOffset);
@@ -777,6 +784,8 @@ void AWeaponBase::ConsumeAmmo()
 	}
 }
 
+//Internal reload logic; bTriggeredByAuto disables auto-resume fire when mag empty.
+//内部填弹逻辑；bTriggeredByAuto 为真时弹匣打空后不自动恢复开火。
 void AWeaponBase::StartReloadInternal(bool bTriggeredByAuto)
 {
 	if (bIsReloading || MaxAmmo <= 0 || ReloadTime <= 0.0f)
@@ -979,7 +988,6 @@ void AWeaponBase::DestroyCrosshairWidget()
 void AWeaponBase::CleanupFireWidget()
 {
 	DestroyFireWidget();
-	
 	if (HasAuthority())
 	{
 		ClientCleanupFireWidget();

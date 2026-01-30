@@ -28,16 +28,11 @@ void UHealthComponent::BeginPlay()
 	RemoveHitEffect();
 }
 
+//Server-authoritative damage entry; triggers hit effect RPC and death handling.
+//服务器授权伤害入口；触发受击红屏 RPC 及死亡处理。
 void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorController)
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority())
-	{
-		return;
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("ApplyDamage进入：Owner=%s Amount=%.2f"),
-		*GetOwner()->GetName(), Amount);
-
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	if (Health <= 0.0f || Amount <= 0.0f)
 	{
 		return;
@@ -49,18 +44,7 @@ void UHealthComponent::ApplyDamage(float Amount, AController* InstigatorControll
 	if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
 	{
 		if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
-		{
-			UE_LOG(LogTemp, Log, TEXT("服务器触发受击红屏RPC"));
 			ClientShowHitEffect(HitEffectDuration);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("服务器触发受击红屏RPC失败：无PlayerController"));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("服务器触发受击红屏RPC失败：Owner不是Character"));
 	}
 
 	if (Health <= 0.0f)
@@ -74,15 +58,13 @@ void UHealthComponent::OnRep_Health(float OldHealth)
 	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
+//Disables input/collision and notifies GameMode for respawn.
+//禁用输入/碰撞并通知 GameMode 处理重生。
 void UHealthComponent::HandleDeath(AController* InstigatorController)
 {
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (!OwnerCharacter)
-	{
-		return;
-	}
+	if (!OwnerCharacter) return;
 	RemoveHitEffect();
-
 	if (UWorld* World = GetWorld())
 	{
 		if (AFPSGameModeBase* GameMode = World->GetAuthGameMode<AFPSGameModeBase>())
@@ -107,34 +89,17 @@ void UHealthComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+//Client RPC: show hit effect overlay for duration.
+//客户端 RPC：显示指定时长的受击红屏叠加层。
 void UHealthComponent::ClientShowHitEffect_Implementation(float Duration)
 {
-	UE_LOG(LogTemp, Log, TEXT("受击已调用红色屏幕"));
-	if (!HitEffectWidgetClass)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击但调用红色屏幕失败"));
-		return;
-	}
-
+	if (!HitEffectWidgetClass) return;
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	APlayerController* PC = OwnerPawn ? Cast<APlayerController>(OwnerPawn->GetController()) : nullptr;
-	if (!PC)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击但调用红色屏幕失败"));
-		return;
-	}
-
+	if (!PC) return;
 	RemoveHitEffect();
-
 	ActiveHitWidget = CreateWidget<UUserWidget>(PC, HitEffectWidgetClass);
-	if (ActiveHitWidget)
-	{
-		ActiveHitWidget->AddToViewport();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("受击但调用红色屏幕失败"));
-	}
+	if (ActiveHitWidget) ActiveHitWidget->AddToViewport();
 
 	if (UWorld* World = GetWorld())
 	{

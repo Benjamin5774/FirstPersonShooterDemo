@@ -29,6 +29,8 @@ void AFPSHUD::Tick(float DeltaSeconds)
 	UpdateInputMode();
 }
 
+//Lazy-init widgets from GameMode CDO; binds scoreboard/start/replay/gameover.
+//从 GameMode CDO 惰性初始化 widget；绑定计分板/开始/重赛/结算。
 void AFPSHUD::TryInitWidgets()
 {
 	APlayerController* PC = GetOwningPlayerController();
@@ -247,6 +249,8 @@ void AFPSHUD::UpdateReadyText(UTextBlock* ReadyText, int32 ReadyCount, int32 Tot
 	ReadyText->SetText(FText::FromString(ReadyString));
 }
 
+//Switch to UI-only input when start/replay widget shown; otherwise game-only.
+//开始/重赛界面显示时切换为纯 UI 输入；否则纯游戏输入。
 void AFPSHUD::UpdateInputMode()
 {
 	APlayerController* PC = GetOwningPlayerController();
@@ -337,4 +341,3 @@ void AFPSHUD::HideKillIcon()
 		bKillIconVisible = false;
 	}
 }
-

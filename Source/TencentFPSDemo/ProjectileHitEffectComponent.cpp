@@ -33,6 +33,8 @@ void UProjectileHitEffectComponent::BeginPlay()
 	}
 }
 
+//Server-only: OnActorHit applies damage, spawns damage number, updates crosshair.
+//仅服务器：OnActorHit 应用伤害、生成伤害数字、更新准星。
 void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* OtherActor,
 	FVector NormalImpulse, const FHitResult& Hit)
 {
@@ -66,7 +68,8 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		{
 			AController* OwnerController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
 			
-			// 检测是否爆头
+			//Headshot: check hit component name against HeadMeshName.
+			//爆头：根据命中组件名与 HeadMeshName 比对。
 			bool bIsHeadshot = false;
 			if (Hit.Component.IsValid() && !HeadMeshName.IsNone())
 			{
@@ -80,13 +83,7 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 			{
 				AppliedDamage *= HeadshotDamageMultiplier;
 				FinalDamageColor = HeadshotDamageColor;
-				UE_LOG(LogTemp, Log, TEXT("爆头！伤害: %.2f (基础伤害 %.2f x %.2f)"), AppliedDamage, DamageAmount, HeadshotDamageMultiplier);
 			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("子弹命中触发扣血"));
-			}
-
 			HealthComp->ApplyDamage(AppliedDamage, OwnerController);
 
 			if (OwnerController && OwnerController->IsLocalController())
@@ -111,10 +108,7 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 
 
 	if (SelfActor && SelfActor->HasAuthority())
-	{
-
 		SelfActor->SetLifeSpan(0.01f);
-	}
 }
 
 bool UProjectileHitEffectComponent::IsValidHitTarget(APawn* OwnerPawn, APawn* OtherPawn) const

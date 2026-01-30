@@ -17,14 +17,12 @@ void UCombatComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
+//Client sends eye ray to server for authoritative hit scan.
+//客户端将视线射线发给服务器进行权威命中判定。
 void UCombatComponent::StartFire()
 {
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (!OwnerPawn)
-	{
-		return;
-	}
-
+	if (!OwnerPawn) return;
 	if (OwnerPawn->IsLocallyControlled())
 	{
 		FVector EyeLocation;
@@ -35,13 +33,11 @@ void UCombatComponent::StartFire()
 	}
 }
 
+//Server-authoritative hit scan; ignores friendly fire by TeamId.
+//服务器权威射线检测；按 TeamId 忽略友军伤害。
 void UCombatComponent::ServerFire_Implementation(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Dir)
 {
-	if (Dir.IsNearlyZero())
-	{
-		return;
-	}
-
+	if (Dir.IsNearlyZero()) return;
 	HandleLineTrace(Origin, Dir);
 }
 

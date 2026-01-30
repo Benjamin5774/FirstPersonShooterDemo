@@ -58,6 +58,8 @@ void AFPSGameModeBase::BeginPlay()
 	}
 }
 
+//Server-authoritative login gate; rejects when player count reaches limit.
+//服务器授权登录闸口；人数达上限时拒绝连接。
 void AFPSGameModeBase::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId,
 	FString& ErrorMessage)
 {
@@ -71,16 +73,13 @@ void AFPSGameModeBase::PreLogin(const FString& Options, const FString& Address, 
 	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
 }
 
+//Assign team id by player index modulo team count.
+//按玩家索引对队伍数取模分配队伍ID。
 void AFPSGameModeBase::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
-
 	AFPSPlayerState* FPSPlayerState = NewPlayer ? Cast<AFPSPlayerState>(NewPlayer->PlayerState) : nullptr;
-	if (!FPSPlayerState || TeamCount <= 0)
-	{
-		return;
-	}
-
+	if (!FPSPlayerState || TeamCount <= 0) return;
 	const int32 PlayerIndex = GameState ? (GameState->PlayerArray.Num() - 1) : 0;
 	const int32 TeamId = PlayerIndex % TeamCount;
 	FPSPlayerState->SetTeamId(TeamId);
@@ -117,13 +116,11 @@ void AFPSGameModeBase::Logout(AController* Exiting)
 	}
 }
 
+//Selects a free PlayerStart by PlayerId-based naming (PlayerStart, PlayerStart1...).
+//按 PlayerId 命名的空闲出生点选择（PlayerStart、PlayerStart1...）。
 AActor* AFPSGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 {
-	if (!Player || !GetWorld())
-	{
-		return Super::ChoosePlayerStart_Implementation(Player);
-	}
-
+	if (!Player || !GetWorld()) return Super::ChoosePlayerStart_Implementation(Player);
 	int32 PlayerId = 0;
 	if (APlayerState* PlayerState = Player->GetPlayerState<APlayerState>())
 	{
@@ -153,6 +150,8 @@ AActor* AFPSGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 	return Super::ChoosePlayerStart_Implementation(Player);
 }
 
+//Server-side kill handler: updates kills/deaths, team score, kill feedback.
+//服务器击杀处理：更新击杀/死亡、队伍分数及击杀反馈。
 void AFPSGameModeBase::OnPlayerKilled(AController* Killer, AController* Victim)
 {
 	AFPSPlayerState* KillerPS = Killer ? Cast<AFPSPlayerState>(Killer->PlayerState) : nullptr;
@@ -206,20 +205,19 @@ void AFPSGameModeBase::OnPlayerKilled(AController* Killer, AController* Victim)
 	}
 }
 
+//Schedules respawn after delay; optionally preserves weapon on respawn.
+//延迟后安排重生；可配置重生时保留武器。
 void AFPSGameModeBase::RequestRespawn(AController* Controller, APawn* DeadPawn)
 {
-	if (!Controller)
-	{
-		return;
-	}
-
+	if (!Controller) return;
 	if (DeadPawn)
 	{
 		if (bKeepWeaponOnRespawn)
 		{
 			if (AWeaponBase* Weapon = FindWeaponFromPawn(DeadPawn))
 			{
-				// 在隐藏武器前，先清理widget
+				//Clean widget before hiding weapon to avoid stale UI.
+				//隐藏武器前清理 widget 避免残留 UI。
 				Weapon->CleanupFireWidget();
 				PendingRespawnWeapons.Add(Controller, Weapon);
 				Weapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
@@ -231,7 +229,8 @@ void AFPSGameModeBase::RequestRespawn(AController* Controller, APawn* DeadPawn)
 		{
 			if (AWeaponBase* Weapon = FindWeaponFromPawn(DeadPawn))
 			{
-				// 在销毁武器前，先清理widget（确保客户端也能清理）
+				//Clean widget before destroy so client also cleans up.
+				//销毁前清理 widget，确保客户端同步清理。
 				Weapon->CleanupFireWidget();
 				Weapon->Destroy();
 			}
@@ -428,13 +427,11 @@ AFPSGameState* AFPSGameModeBase::GetFPSGameState() const
 	return GetGameState<AFPSGameState>();
 }
 
+//Handles ready button: start match or restart when all players ready.
+//处理就绪按钮：全员就绪时开始或重开比赛。
 void AFPSGameModeBase::HandlePlayerReady(APlayerController* PlayerController, bool bForRestart)
 {
-	if (!PlayerController)
-	{
-		return;
-	}
-
+	if (!PlayerController) return;
 	AFPSGameState* FPSGameState = GetFPSGameState();
 	if (!FPSGameState)
 	{
@@ -606,12 +603,12 @@ void AFPSGameModeBase::RespawnAllWeapons()
 		return;
 	}
 
-	// 在销毁武器前，先清理所有武器的widget，防止上一局游戏的widget残留
+	//Clean all weapon widgets before destroy to avoid last-round residue.
+	//销毁前清理所有武器 widget 防止上局残留。
 	for (TActorIterator<AWeaponBase> It(GetWorld()); It; ++It)
 	{
 		if (AWeaponBase* Weapon = *It)
 		{
-			// 清理widget，确保不会残留上一局游戏的widget
 			Weapon->CleanupFireWidget();
 			Weapon->Destroy();
 		}

@@ -11,6 +11,8 @@ AFPSPlayerState::AFPSPlayerState()
 	Deaths = 0;
 }
 
+//Server-only: assign team; used for friendly fire and score.
+//仅服务器：分配队伍；用于友伤判断及计分。
 void AFPSPlayerState::SetTeamId(int32 InTeamId)
 {
 	if (!HasAuthority())
@@ -41,6 +43,8 @@ void AFPSPlayerState::AddDeath()
 	++Deaths;
 }
 
+//Client RPC: spawn damage number actor for shooter's local view.
+//客户端 RPC：为射击者本地视图生成伤害数字 Actor。
 void AFPSPlayerState::ClientShowDamageNumber_Implementation(AActor* HitActor, float Damage, FLinearColor Color,
 	TSubclassOf<AActor> DamageEffectClass)
 {
@@ -89,4 +93,3 @@ void AFPSPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(AFPSPlayerState, Kills);
 	DOREPLIFETIME(AFPSPlayerState, Deaths);
 }
-

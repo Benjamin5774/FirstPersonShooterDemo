@@ -29,7 +29,6 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
 	FOnHealthChanged OnHealthChanged;
-	
 
 protected:
 	virtual void BeginPlay() override;

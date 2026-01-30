@@ -5,6 +5,8 @@
 #include "Net/UnrealNetwork.h"
 #include "Blueprint/WidgetTree.h"
 
+//Owner-relevant damage popup; rises and fades over LifeTime.
+//仅对 Owner 可见的伤害飘字；上升并随 LifeTime 消退。
 ADamageNumberActor::ADamageNumberActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -69,6 +71,8 @@ void ADamageNumberActor::Tick(float DeltaSeconds)
 	}
 }
 
+//IDamageEffectInterface: init value/color, applied before replication.
+//IDamageEffectInterface：初始化数值/颜色，在复制前应用。
 void ADamageNumberActor::InitDamageEffect_Implementation(float Damage, FLinearColor Color)
 {
 	DamageValue = Damage;

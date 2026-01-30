@@ -67,6 +67,8 @@ void UMovementSoundComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	UpdateMovementAudio(GetOwnerSpeed2D());
 }
 
+//Play movement sound only for locally controlled pawn (avoids duplicate audio).
+//仅对本地控制 Pawn 播放移动音效（避免重复）。
 bool UMovementSoundComponent::ShouldPlayForOwner() const
 {
 	const APawn* PawnOwner = Cast<APawn>(GetOwner());
@@ -97,6 +99,8 @@ float UMovementSoundComponent::GetOwnerSpeed2D() const
 	return OwnerActor->GetVelocity().Size2D();
 }
 
+//Pitch scales with speed (MinSpeedToPlay..MaxSpeed -> MinPitch..MaxPitch).
+//Pitch 随速度缩放（MinSpeedToPlay..MaxSpeed 映射到 MinPitch..MaxPitch）。
 void UMovementSoundComponent::UpdateMovementAudio(float Speed2D)
 {
 	if (!MoveAudioComponent)
