@@ -1,6 +1,7 @@
 #include "ProjectileHitEffectComponent.h"
 #include "FPSPlayerState.h"
 #include "DamageEffectInterface.h"
+#include "WeaponBase.h"
 #include "GameFramework/Character.h"
 #include "HealthComponent.h"
 #include "GameFramework/Pawn.h"
@@ -99,6 +100,13 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 			}
 
 			PlayHitSoundForOwner(OwnerController);
+
+			// 通知射击者准星：命中身体或爆头（仅射击者客户端会收到 RPC）
+			if (AWeaponBase* ShooterWeapon = AWeaponBase::GetWeaponFromPawn(OwnerPawn))
+			{
+				ShooterWeapon->ClientSetCrosshairState(bIsHeadshot ? ECrosshairState::Headshot : ECrosshairState::Hit);
+			}
+
 			bHasTriggered = true;
 		}
 	}

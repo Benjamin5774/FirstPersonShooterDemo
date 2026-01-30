@@ -12,6 +12,15 @@ class UUserWidget;
 class UTextBlock;
 class USoundBase;
 
+/** 准星显示状态：默认 / 命中身体 / 爆头 */
+UENUM(BlueprintType)
+enum class ECrosshairState : uint8
+{
+	Default   UMETA(DisplayName = "默认（未命中）"),
+	Hit       UMETA(DisplayName = "命中身体"),
+	Headshot  UMETA(DisplayName = "爆头")
+};
+
 UCLASS()
 class TENCENTFPSDEMO_API AWeaponBase : public AActor
 {
@@ -35,9 +44,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	void SetFireWidget(UUserWidget* InWidget);
 
-	/** 设置准星 Widget（可与枪口方向对齐显示在屏幕中心） */
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void SetCrosshairWidget(UUserWidget* InWidget);
+	/** 设置准星状态（默认 / 命中 / 爆头），蓝图可调；命中/爆头会在短暂时间后自动恢复为默认 */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|UI")
+	void SetCrosshairState(ECrosshairState State);
+
+	/** 从 Pawn 上取得当前装备的武器（用于子弹命中时通知准星） */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weapon")
+	static AWeaponBase* GetWeaponFromPawn(APawn* Pawn);
 
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipToPawn(APawn* InPawn);
@@ -87,6 +100,8 @@ protected:
 	void StartFireWidgetRetry();
 	void EnsureCrosshairWidget();
 	void DestroyCrosshairWidget();
+	void SetCrosshairStateInternal(ECrosshairState State);
+	void ResetCrosshairToDefault();
 
 	/** 仅本地控制的玩家开火时调用：视角后坐力（相机震动由蓝图实现） */
 	void ApplyRecoil();
@@ -108,6 +123,10 @@ public:
 	// 客户端清理widget的RPC（用于确保客户端在死亡时也能清理widget）
 	UFUNCTION(Client, Reliable)
 	void ClientCleanupFireWidget();
+
+	/** 服务器通知客户端：子弹命中，切换准星为命中/爆头（仅射击者客户端执行） */
+	UFUNCTION(Client, Reliable)
+	void ClientSetCrosshairState(ECrosshairState State);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* WeaponMesh;
@@ -181,15 +200,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI")
 	TSubclassOf<UUserWidget> FireWidgetClass;
 
-	/** 准星 Widget 类（可选）。创建后会以屏幕中心显示，与枪口射线方向对齐 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI")
-	TSubclassOf<UUserWidget> CrosshairWidgetClass;
+	/** 默认准星（未命中时显示） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI|Crosshair")
+	TSubclassOf<UUserWidget> CrosshairDefaultClass;
+
+	/** 命中身体时显示的准星 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI|Crosshair")
+	TSubclassOf<UUserWidget> CrosshairHitClass;
+
+	/** 爆头时显示的准星 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI|Crosshair")
+	TSubclassOf<UUserWidget> CrosshairHeadshotClass;
+
+	/** 命中/爆头准星显示多久后恢复为默认（秒） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|UI|Crosshair", meta = (ClampMin = "0.05", UIMin = "0.05"))
+	float CrosshairResetTime;
 
 	UPROPERTY(Transient)
 	UUserWidget* FireWidget;
 
 	UPROPERTY(Transient)
-	UUserWidget* CrosshairWidget;
+	UUserWidget* CrosshairDefaultWidget;
+
+	UPROPERTY(Transient)
+	UUserWidget* CrosshairHitWidget;
+
+	UPROPERTY(Transient)
+	UUserWidget* CrosshairHeadshotWidget;
+
+	FTimerHandle CrosshairResetTimerHandle;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|Ammo")
 	float ReloadEndTime;

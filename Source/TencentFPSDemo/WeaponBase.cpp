@@ -12,6 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
+#include "TimerManager.h"
+#include "EngineUtils.h"
 
 namespace
 {
@@ -81,6 +83,7 @@ AWeaponBase::AWeaponBase()
 	bIsFiring = false;
 	bAutoReload = true;
 	ReloadEndTime = 0.0f;
+	CrosshairResetTime = 0.2f;
 }
 
 void AWeaponBase::BeginPlay()
@@ -248,20 +251,108 @@ void AWeaponBase::SetFireWidget(UUserWidget* InWidget)
 	UpdateReloadUI();
 }
 
-void AWeaponBase::SetCrosshairWidget(UUserWidget* InWidget)
+void AWeaponBase::SetCrosshairState(ECrosshairState State)
 {
-	CrosshairWidget = InWidget;
-	if (CrosshairWidget)
+	SetCrosshairStateInternal(State);
+	if (State != ECrosshairState::Default && CrosshairResetTime > 0.0f)
 	{
-		APawn* OwnerPawn = Cast<APawn>(GetOwner());
-		if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+		if (UWorld* World = GetWorld())
 		{
-			if (!CrosshairWidget->IsInViewport())
+			World->GetTimerManager().ClearTimer(CrosshairResetTimerHandle);
+			World->GetTimerManager().SetTimer(CrosshairResetTimerHandle, this, &AWeaponBase::ResetCrosshairToDefault, CrosshairResetTime, false);
+		}
+	}
+}
+
+void AWeaponBase::SetCrosshairStateInternal(ECrosshairState State)
+{
+	// 若请求的准星未配置，则保持默认
+	if (State == ECrosshairState::Hit && !CrosshairHitWidget)
+	{
+		State = ECrosshairState::Default;
+	}
+	if (State == ECrosshairState::Headshot && !CrosshairHeadshotWidget)
+	{
+		State = ECrosshairState::Default;
+	}
+
+	auto SetVisibility = [](UUserWidget* W, bool bVisible)
+	{
+		if (W)
+		{
+			W->SetVisibility(bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	};
+	SetVisibility(CrosshairDefaultWidget, State == ECrosshairState::Default);
+	SetVisibility(CrosshairHitWidget, State == ECrosshairState::Hit);
+	SetVisibility(CrosshairHeadshotWidget, State == ECrosshairState::Headshot);
+}
+
+void AWeaponBase::ResetCrosshairToDefault()
+{
+	SetCrosshairStateInternal(ECrosshairState::Default);
+}
+
+void AWeaponBase::ClientSetCrosshairState_Implementation(ECrosshairState State)
+{
+	SetCrosshairState(State);
+}
+
+AWeaponBase* AWeaponBase::GetWeaponFromPawn(APawn* Pawn)
+{
+	if (!Pawn)
+	{
+		return nullptr;
+	}
+	for (TFieldIterator<FProperty> PropIt(Pawn->GetClass()); PropIt; ++PropIt)
+	{
+		FProperty* Prop = *PropIt;
+		if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Prop))
+		{
+			if (ObjProp->PropertyClass && ObjProp->PropertyClass->IsChildOf(AWeaponBase::StaticClass()))
 			{
-				CrosshairWidget->AddToViewport();
+				UObject* WeaponObj = ObjProp->GetObjectPropertyValue_InContainer(Pawn);
+				if (AWeaponBase* Weapon = Cast<AWeaponBase>(WeaponObj))
+				{
+					if (Weapon->GetOwner() == Pawn)
+					{
+						return Weapon;
+					}
+				}
 			}
 		}
 	}
+	TArray<FName> PossibleWeaponNames = { TEXT("CurrentWeapon"), TEXT("Weapon"), TEXT("EquippedWeapon"), TEXT("MyWeapon"), TEXT("PrimaryWeapon") };
+	for (const FName& WeaponVarName : PossibleWeaponNames)
+	{
+		FProperty* Prop = Pawn->GetClass()->FindPropertyByName(WeaponVarName);
+		if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Prop))
+		{
+			if (ObjProp->PropertyClass && ObjProp->PropertyClass->IsChildOf(AWeaponBase::StaticClass()))
+			{
+				UObject* WeaponObj = ObjProp->GetObjectPropertyValue_InContainer(Pawn);
+				if (AWeaponBase* Weapon = Cast<AWeaponBase>(WeaponObj))
+				{
+					if (Weapon->GetOwner() == Pawn)
+					{
+						return Weapon;
+					}
+				}
+			}
+		}
+	}
+	if (UWorld* World = Pawn->GetWorld())
+	{
+		for (TActorIterator<AWeaponBase> It(World); It; ++It)
+		{
+			AWeaponBase* Weapon = *It;
+			if (Weapon->GetOwner() == Pawn)
+			{
+				return Weapon;
+			}
+		}
+	}
+	return nullptr;
 }
 
 bool AWeaponBase::EquipToPawn(APawn* InPawn)
@@ -772,15 +863,6 @@ void AWeaponBase::DestroyFireWidget()
 
 void AWeaponBase::EnsureCrosshairWidget()
 {
-	if (CrosshairWidget)
-	{
-		return;
-	}
-	if (!CrosshairWidgetClass)
-	{
-		return;
-	}
-
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
 	{
@@ -793,20 +875,48 @@ void AWeaponBase::EnsureCrosshairWidget()
 		return;
 	}
 
-	CrosshairWidget = CreateWidget<UUserWidget>(PC, CrosshairWidgetClass);
-	if (CrosshairWidget)
+	auto CreateAndAdd = [PC, this](TSubclassOf<UUserWidget> Class, UUserWidget*& OutWidget)
 	{
-		CrosshairWidget->AddToViewport();
+		if (!Class || OutWidget)
+		{
+			return;
+		}
+		OutWidget = CreateWidget<UUserWidget>(PC, Class);
+		if (OutWidget)
+		{
+			OutWidget->AddToViewport();
+		}
+	};
+
+	CreateAndAdd(CrosshairDefaultClass, CrosshairDefaultWidget);
+	CreateAndAdd(CrosshairHitClass, CrosshairHitWidget);
+	CreateAndAdd(CrosshairHeadshotClass, CrosshairHeadshotWidget);
+
+	// 至少有一个准星时才设为默认状态
+	if (CrosshairDefaultWidget || CrosshairHitWidget || CrosshairHeadshotWidget)
+	{
+		SetCrosshairStateInternal(ECrosshairState::Default);
 	}
 }
 
 void AWeaponBase::DestroyCrosshairWidget()
 {
-	if (CrosshairWidget)
+	if (UWorld* World = GetWorld())
 	{
-		CrosshairWidget->RemoveFromParent();
-		CrosshairWidget = nullptr;
+		World->GetTimerManager().ClearTimer(CrosshairResetTimerHandle);
 	}
+
+	auto Remove = [](UUserWidget*& W)
+	{
+		if (W)
+		{
+			W->RemoveFromParent();
+			W = nullptr;
+		}
+	};
+	Remove(CrosshairDefaultWidget);
+	Remove(CrosshairHitWidget);
+	Remove(CrosshairHeadshotWidget);
 }
 
 void AWeaponBase::CleanupFireWidget()
