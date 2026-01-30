@@ -33,9 +33,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Reload")
 	FKey ReloadKey = EKeys::E;
 
+	// 开镜按键（按住开镜，松开恢复）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Aim")
+	FKey AimKey = EKeys::RightMouseButton;
+
 protected:
 	// 处理换弹输入
 	void OnReloadPressed();
+
+	void OnAimPressed();
+	void OnAimReleased();
 
 	// 获取当前武器
 	AWeaponBase* GetCurrentWeapon() const;

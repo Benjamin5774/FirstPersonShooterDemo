@@ -1,6 +1,7 @@
 #include "WeaponBase.h"
 #include "HealthComponent.h"
 #include "FPSPlayerState.h"
+#include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/TextBlock.h"
@@ -84,6 +85,8 @@ AWeaponBase::AWeaponBase()
 	bAutoReload = true;
 	ReloadEndTime = 0.0f;
 	CrosshairResetTime = 0.2f;
+	AimOffsetLocation = FVector(15.f, 0.f, -8.f);
+	AimOffsetRotation = FRotator(0.f, 0.f, -5.f);
 }
 
 void AWeaponBase::BeginPlay()
@@ -296,6 +299,39 @@ void AWeaponBase::ResetCrosshairToDefault()
 void AWeaponBase::ClientSetCrosshairState_Implementation(ECrosshairState State)
 {
 	SetCrosshairState(State);
+}
+
+void AWeaponBase::SetAiming(bool bAiming)
+{
+	if (bIsAiming == bAiming)
+	{
+		return;
+	}
+	bIsAiming = bAiming;
+
+	// 按下开镜时：用当前相对变换作为“基准”，这样客户端（未跑过 AttachToPawn）也能正确恢复
+	if (bIsAiming)
+	{
+		if (USceneComponent* Root = GetRootComponent())
+		{
+			StoredBaseRelativeTransform = Root->GetRelativeTransform();
+		}
+	}
+
+	ApplyAimTransform();
+}
+
+void AWeaponBase::ApplyAimTransform()
+{
+	if (bIsAiming)
+	{
+		const FTransform AimOffset(AimOffsetRotation, AimOffsetLocation, FVector::OneVector);
+		SetActorRelativeTransform(StoredBaseRelativeTransform * AimOffset, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	else
+	{
+		SetActorRelativeTransform(StoredBaseRelativeTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	}
 }
 
 AWeaponBase* AWeaponBase::GetWeaponFromPawn(APawn* Pawn)
@@ -560,6 +596,12 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 		const FName SocketName = GrabPointName.IsNone() ? NAME_None : GrabPointName;
 		AttachToComponent(PawnMesh, AttachRules, SocketName);
 	}
+
+	// 保存默认相对变换，开镜时在其上叠加偏移
+	if (USceneComponent* Root = GetRootComponent())
+	{
+		StoredBaseRelativeTransform = Root->GetRelativeTransform();
+	}
 }
 
 void AWeaponBase::AssignWeaponToPawn(APawn* InPawn)
@@ -606,12 +648,22 @@ void AWeaponBase::MulticastAssignWeaponToPawn_Implementation(APawn* InPawn)
 
 FVector AWeaponBase::GetMuzzleLocation() const
 {
-	if (WeaponMesh && !FireSocketName.IsNone())
+	if (!WeaponMesh || FireSocketName.IsNone())
 	{
-		return WeaponMesh->GetSocketLocation(FireSocketName);
+		return WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
 	}
 
-	return WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
+	// 开镜只改表现，枪口位置用“未开镜”的基准变换计算，保证子弹/射线从原枪口发出
+	USceneComponent* Root = GetRootComponent();
+	if (Root && Root->GetAttachParent())
+	{
+		const FVector MuzzleLocal = WeaponMesh->GetSocketTransform(FireSocketName, RTS_Component).GetLocation();
+		const FTransform BaseRelative = bIsAiming ? StoredBaseRelativeTransform : Root->GetRelativeTransform();
+		const FTransform BaseWorld = Root->GetAttachParent()->GetComponentTransform() * BaseRelative;
+		return BaseWorld.TransformPosition(MuzzleLocal);
+	}
+
+	return WeaponMesh->GetSocketLocation(FireSocketName);
 }
 
 FRotator AWeaponBase::GetAimRotation() const

@@ -59,6 +59,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weapon|Ammo")
 	bool HasAmmo() const;
 
+	/** 开镜：按住时枪移到身前（应用 AimOffset），松开恢复 */
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void SetAiming(bool bAiming);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -102,6 +106,7 @@ protected:
 	void DestroyCrosshairWidget();
 	void SetCrosshairStateInternal(ECrosshairState State);
 	void ResetCrosshairToDefault();
+	void ApplyAimTransform();
 
 	/** 仅本地控制的玩家开火时调用：视角后坐力（相机震动由蓝图实现） */
 	void ApplyRecoil();
@@ -176,6 +181,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Recoil", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float RecoilYaw = 0.0f;
 
+	/** 开镜时枪相对默认握持的位置偏移（可调：把枪拉到眼前） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aim")
+	FVector AimOffsetLocation;
+
+	/** 开镜时枪相对默认握持的旋转偏移（度，可调） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aim")
+	FRotator AimOffsetRotation;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Weapon|Aim")
+	bool bIsAiming = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
 	int32 MaxAmmo;
 
@@ -237,5 +253,8 @@ public:
 	FTimerHandle ReloadTimerHandle;
 	FTimerHandle ReloadUITimerHandle;
 	FTimerHandle FireWidgetRetryHandle;
+
+	/** 装备时保存的默认相对变换，开镜时在其上叠加 AimOffset */
+	FTransform StoredBaseRelativeTransform;
 };
 

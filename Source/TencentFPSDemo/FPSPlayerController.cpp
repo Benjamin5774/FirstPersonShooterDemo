@@ -63,8 +63,9 @@ void AFPSPlayerController::SetupInputComponent()
 	// 在UE5中，PlayerController有InputComponent成员变量，可以直接访问
 	if (InputComponent)
 	{
-		// 使用BindKey直接绑定按键
 		InputComponent->BindKey(ReloadKey, IE_Pressed, this, &AFPSPlayerController::OnReloadPressed);
+		InputComponent->BindKey(AimKey, IE_Pressed, this, &AFPSPlayerController::OnAimPressed);
+		InputComponent->BindKey(AimKey, IE_Released, this, &AFPSPlayerController::OnAimReleased);
 	}
 }
 
@@ -73,6 +74,22 @@ void AFPSPlayerController::OnReloadPressed()
 	if (AWeaponBase* Weapon = GetCurrentWeapon())
 	{
 		Weapon->StartReload();
+	}
+}
+
+void AFPSPlayerController::OnAimPressed()
+{
+	if (AWeaponBase* Weapon = GetCurrentWeapon())
+	{
+		Weapon->SetAiming(true);
+	}
+}
+
+void AFPSPlayerController::OnAimReleased()
+{
+	if (AWeaponBase* Weapon = GetCurrentWeapon())
+	{
+		Weapon->SetAiming(false);
 	}
 }
 
