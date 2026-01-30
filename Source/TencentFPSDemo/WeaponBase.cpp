@@ -86,7 +86,7 @@ AWeaponBase::AWeaponBase()
 	CrosshairResetTime = 0.2f;
 	ADSAlpha = 0.0f;
 	bIsADS = false;
-	// ADSRelativeOffset 默认：枪向相机方向靠一点（按常见第一人称：前向为 X，可设为负 X + 小旋转）
+	// ADS
 	ADSRelativeOffset.SetLocation(FVector(-15.0f, 0.0f, -5.0f));
 	ADSRelativeOffset.SetRotation(FQuat(FRotator(-5.0f, 0.0f, 0.0f)));
 	ADSRelativeOffset.SetScale3D(FVector::OneVector);
@@ -104,8 +104,6 @@ void AWeaponBase::BeginPlay()
 	CurrentAmmo = MaxAmmo;
 	UpdateAmmoUI();
 	
-	// 只有在武器已经有owner且owner是本地控制的pawn时才创建widget
-	// 这样可以避免重新开始游戏时创建上一局游戏的widget
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
 	{
@@ -114,14 +112,12 @@ void AWeaponBase::BeginPlay()
 	}
 	else
 	{
-		// 确保没有残留的widget
 		DestroyFireWidget();
 	}
 }
 
 void AWeaponBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// 在武器被销毁前，确保清理widget
 	DestroyFireWidget();
 	
 	Super::EndPlay(EndPlayReason);
@@ -139,7 +135,6 @@ void AWeaponBase::OnRep_Owner()
 	}
 	else
 	{
-		// Owner被移除时，清理widget（客户端也会收到这个通知）
 		DestroyFireWidget();
 	}
 }
@@ -151,7 +146,7 @@ void AWeaponBase::Tick(float DeltaTime)
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn)
 	{
-		bHipTransformCaptured = false; // 失去 Owner 时重置，下次装备时重新捕获
+		bHipTransformCaptured = false; 
 		return;
 	}
 	if (OwnerPawn->IsLocallyControlled())
@@ -173,7 +168,6 @@ void AWeaponBase::UpdateADSTransform(float DeltaTime)
 		return;
 	}
 
-	// 客户端不会执行 AttachToPawn，HipTransform 未设置；用当前复制下来的相对变换作为腰射姿态
 	if (!bHipTransformCaptured)
 	{
 		HipTransform = Root->GetRelativeTransform();
@@ -210,7 +204,6 @@ void AWeaponBase::Fire()
 		return;
 	}
 
-	// 有子弹且通过 CanFire，本帧会打出子弹
 	bIsFiring = true;
 
 	if (OwnerPawn->IsLocallyControlled())
@@ -248,7 +241,6 @@ void AWeaponBase::ApplyRecoil()
 		return;
 	}
 
-	// 视角后坐力：准星上抬（负 Pitch）、可选水平偏移；相机震动由蓝图实现
 	if (RecoilPitch > 0.0f || RecoilYaw != 0.0f)
 	{
 		PC->AddPitchInput(-RecoilPitch);
@@ -288,9 +280,10 @@ void AWeaponBase::StopFire()
 
 void AWeaponBase::StartReload()
 {
+	// 玩家主动按键填弹
 	if (HasAuthority())
 	{
-		StartReloadInternal(false); // 玩家主动按键填弹
+		StartReloadInternal(false); 
 		return;
 	}
 
@@ -319,7 +312,7 @@ void AWeaponBase::SetCrosshairState(ECrosshairState State)
 
 void AWeaponBase::SetCrosshairStateInternal(ECrosshairState State)
 {
-	// 若请求的准星未配置，则保持默认
+
 	if (State == ECrosshairState::Hit && !CrosshairHitWidget)
 	{
 		State = ECrosshairState::Default;
@@ -421,7 +414,6 @@ bool AWeaponBase::EquipToPawn(APawn* InPawn)
 		return false;
 	}
 
-	// 在设置owner前，先清理可能存在的旧widget
 	DestroyFireWidget();
 
 	SetOwner(InPawn);
@@ -451,7 +443,7 @@ void AWeaponBase::ServerFire_Implementation()
 	{
 		if (bAutoReload && CurrentAmmo <= 0)
 		{
-			StartReloadInternal(true); // 无弹时触发的自动填弹，填完后不自动开火
+			StartReloadInternal(true); 
 		}
 		return;
 	}
@@ -472,7 +464,6 @@ void AWeaponBase::ServerFire_Implementation()
 		AActor* SpawnedBullet = GetWorld()->SpawnActor<AActor>(BulletClass, MuzzleLocation, AimRotation, SpawnParams);
 		if (SpawnedBullet)
 		{
-			// 设置子弹生命周期，5秒后自动销毁（防止子弹永远不消失）
 			SpawnedBullet->SetLifeSpan(5.0f);
 		}
 	}
@@ -485,7 +476,7 @@ void AWeaponBase::ServerFire_Implementation()
 
 void AWeaponBase::ServerStartReload_Implementation()
 {
-	StartReloadInternal(false); // 玩家主动按键填弹，填完后可恢复开火
+	StartReloadInternal(false); 
 }
 
 void AWeaponBase::OnPickupSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -519,14 +510,12 @@ bool AWeaponBase::TryPickup(APawn* InPawn)
 		return false;
 	}
 
-	// 在设置owner前，先清理可能存在的旧widget
 	DestroyFireWidget();
 
 	SetOwner(InPawn);
 	AttachToPawn(InPawn, PawnMesh);
 	AssignWeaponToPawn(InPawn);
 
-	// 玩家捡起武器后，创建 widget 和准星
 	StartFireWidgetRetry();
 	EnsureCrosshairWidget();
 
@@ -582,7 +571,6 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 		return;
 	}
 
-	// 避免父级非等比缩放导致武器变形
 	WeaponMesh->SetUsingAbsoluteScale(true);
 	WeaponMesh->SetRelativeScale3D(FVector::OneVector);
 
@@ -620,7 +608,7 @@ void AWeaponBase::AttachToPawn(APawn* InPawn, USkeletalMeshComponent* PawnMesh)
 	}
 	ADSAlpha = 0.0f;
 	bIsADS = false;
-	bHipTransformCaptured = true; // 服务器在本路径已设置 HipTransform
+	bHipTransformCaptured = true; 
 }
 
 void AWeaponBase::AssignWeaponToPawn(APawn* InPawn)
@@ -677,7 +665,7 @@ FVector AWeaponBase::GetMuzzleLocation() const
 		MuzzleLoc = WeaponMesh ? WeaponMesh->GetComponentLocation() : GetActorLocation();
 	}
 
-	// 开镜时应用可调偏移（武器本地空间：X 前 Y 右 Z 上），本地端与服务器均使用，便于手动调整开镜后枪口位置
+	// 开镜时应用偏移
 	if (bIsADS && WeaponMesh && !ADSMuzzleOffset.IsNearlyZero())
 	{
 		MuzzleLoc += WeaponMesh->GetComponentQuat().RotateVector(ADSMuzzleOffset);
@@ -816,7 +804,6 @@ void AWeaponBase::FinishReload()
 	StopReloadUI();
 	UpdateAmmoUI();
 
-	// 仅当本次填弹是玩家主动按键触发时才在填弹完成后恢复开火；自动填弹（打空弹匣）后不自动开火
 	if (bWantsToFire && !bReloadTriggeredByAuto)
 	{
 		StartFire();
@@ -963,7 +950,6 @@ void AWeaponBase::EnsureCrosshairWidget()
 	CreateAndAdd(CrosshairHitClass, CrosshairHitWidget);
 	CreateAndAdd(CrosshairHeadshotClass, CrosshairHeadshotWidget);
 
-	// 至少有一个准星时才设为默认状态
 	if (CrosshairDefaultWidget || CrosshairHitWidget || CrosshairHeadshotWidget)
 	{
 		SetCrosshairStateInternal(ECrosshairState::Default);
@@ -994,7 +980,6 @@ void AWeaponBase::CleanupFireWidget()
 {
 	DestroyFireWidget();
 	
-	// 如果是服务器，通知所有客户端也清理widget
 	if (HasAuthority())
 	{
 		ClientCleanupFireWidget();

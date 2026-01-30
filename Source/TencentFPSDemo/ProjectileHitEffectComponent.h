@@ -24,15 +24,14 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "Damage")
 	FLinearColor DamageColor;
 
-	/** 爆头伤害倍数（例如 2.0 表示双倍伤害） */
+	//爆头伤害倍数
 	UPROPERTY(EditDefaultsOnly, Category = "Damage|Headshot", meta = (ClampMin = "1.0", UIMin = "1.0"))
 	float HeadshotDamageMultiplier;
 
-	/** 头部网格的名称（例如 "Head"），用于检测爆头 */
+
 	UPROPERTY(EditDefaultsOnly, Category = "Damage|Headshot")
 	FName HeadMeshName;
 
-	/** 爆头时的伤害数字颜色（可与普通伤害区分） */
 	UPROPERTY(EditDefaultsOnly, Category = "Damage|Headshot")
 	FLinearColor HeadshotDamageColor;
 

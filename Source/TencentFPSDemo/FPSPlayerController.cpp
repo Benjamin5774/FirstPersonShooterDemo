@@ -51,7 +51,7 @@ void AFPSPlayerController::ClientShowKillIcon_Implementation(float Duration)
 
 AFPSPlayerController::AFPSPlayerController()
 {
-	// 默认换弹键为E
+	// 换弹键为E
 	ReloadKey = EKeys::E;
 }
 
@@ -59,11 +59,9 @@ void AFPSPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// 绑定换弹键（使用FKey直接绑定）
-	// 在UE5中，PlayerController有InputComponent成员变量，可以直接访问
 	if (InputComponent)
 	{
-		// 使用BindKey直接绑定按键
+
 		InputComponent->BindKey(ReloadKey, IE_Pressed, this, &AFPSPlayerController::OnReloadPressed);
 		InputComponent->BindKey(ADSKey, IE_Pressed, this, &AFPSPlayerController::OnADSPressed);
 		InputComponent->BindKey(ADSKey, IE_Released, this, &AFPSPlayerController::OnADSReleased);
@@ -102,8 +100,6 @@ AWeaponBase* AFPSPlayerController::GetCurrentWeapon() const
 		return nullptr;
 	}
 
-	// 方法1: 通过反射查找所有AWeaponBase类型的属性
-	// 这样可以自动找到武器，无论变量名是什么
 	for (TFieldIterator<FProperty> PropIt(ControlledPawn->GetClass()); PropIt; ++PropIt)
 	{
 		FProperty* Prop = *PropIt;
@@ -114,7 +110,7 @@ AWeaponBase* AFPSPlayerController::GetCurrentWeapon() const
 				UObject* WeaponObj = ObjProp->GetObjectPropertyValue_InContainer(ControlledPawn);
 				if (AWeaponBase* Weapon = Cast<AWeaponBase>(WeaponObj))
 				{
-					// 验证武器确实属于这个Pawn
+					
 					if (Weapon->GetOwner() == ControlledPawn)
 					{
 						return Weapon;
@@ -124,7 +120,6 @@ AWeaponBase* AFPSPlayerController::GetCurrentWeapon() const
 		}
 	}
 
-	// 方法2: 如果反射没找到，尝试常见的武器变量名
 	TArray<FName> PossibleWeaponNames = { 
 		TEXT("CurrentWeapon"), 
 		TEXT("Weapon"), 
@@ -152,7 +147,6 @@ AWeaponBase* AFPSPlayerController::GetCurrentWeapon() const
 		}
 	}
 
-	// 方法3: 作为最后的手段，遍历所有武器，找到owner是当前Pawn的武器
 	if (UWorld* World = GetWorld())
 	{
 		for (TActorIterator<AWeaponBase> It(World); It; ++It)

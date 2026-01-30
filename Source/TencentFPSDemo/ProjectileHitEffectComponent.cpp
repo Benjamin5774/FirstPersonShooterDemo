@@ -66,7 +66,7 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		{
 			AController* OwnerController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
 			
-			// 检测是否爆头：判断碰撞的组件名称是否为头部
+			// 检测是否爆头
 			bool bIsHeadshot = false;
 			if (Hit.Component.IsValid() && !HeadMeshName.IsNone())
 			{
@@ -74,7 +74,6 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 				bIsHeadshot = (HitComponentName == HeadMeshName);
 			}
 
-			// 计算最终伤害：爆头则乘以倍数
 			float AppliedDamage = FMath::Abs(DamageAmount);
 			FLinearColor FinalDamageColor = DamageColor;
 			if (bIsHeadshot)
@@ -101,7 +100,6 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 
 			PlayHitSoundForOwner(OwnerController);
 
-			// 通知射击者准星：命中身体或爆头（仅射击者客户端会收到 RPC）
 			if (AWeaponBase* ShooterWeapon = AWeaponBase::GetWeaponFromPawn(OwnerPawn))
 			{
 				ShooterWeapon->ClientSetCrosshairState(bIsHeadshot ? ECrosshairState::Headshot : ECrosshairState::Hit);
@@ -111,11 +109,10 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		}
 	}
 
-	// 无论是否命中有效目标，碰撞后都应该销毁子弹，防止子弹在场景中弹跳
-	// 使用延迟销毁，让蓝图事件处理完成后再销毁，避免访问已销毁的组件
+
 	if (SelfActor && SelfActor->HasAuthority())
 	{
-		// 延迟一帧销毁，确保蓝图事件处理完成
+
 		SelfActor->SetLifeSpan(0.01f);
 	}
 }
@@ -178,7 +175,6 @@ void UProjectileHitEffectComponent::SpawnDamageEffectLocal(AController* OwnerCon
 		return;
 	}
 
-	// 根据伤害值判断是否爆头，使用对应颜色
 	FLinearColor FinalColor = (FMath::Abs(Damage) > DamageAmount * 1.5f) ? HeadshotDamageColor : DamageColor;
 	
 	if (EffectActor->GetClass()->ImplementsInterface(UDamageEffectInterface::StaticClass()))
