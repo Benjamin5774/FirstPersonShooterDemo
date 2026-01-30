@@ -14,6 +14,9 @@ UProjectileHitEffectComponent::UProjectileHitEffectComponent()
 
 	DamageAmount = 25.0f;
 	DamageColor = FLinearColor::Red;
+	HeadshotDamageMultiplier = 2.0f;
+	HeadMeshName = TEXT("Head");
+	HeadshotDamageColor = FLinearColor::Yellow;
 	bOnlyOnOtherPlayers = true;
 	bTriggerOnce = true;
 	bHasTriggered = false;
@@ -61,8 +64,29 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 		if (UHealthComponent* HealthComp = OtherActor->FindComponentByClass<UHealthComponent>())
 		{
 			AController* OwnerController = OwnerPawn ? OwnerPawn->GetController() : nullptr;
-			UE_LOG(LogTemp, Log, TEXT("子弹命中触发扣血"));
-			const float AppliedDamage = FMath::Abs(DamageAmount);
+			
+			// 检测是否爆头：判断碰撞的组件名称是否为头部
+			bool bIsHeadshot = false;
+			if (Hit.Component.IsValid() && !HeadMeshName.IsNone())
+			{
+				FName HitComponentName = Hit.Component->GetFName();
+				bIsHeadshot = (HitComponentName == HeadMeshName);
+			}
+
+			// 计算最终伤害：爆头则乘以倍数
+			float AppliedDamage = FMath::Abs(DamageAmount);
+			FLinearColor FinalDamageColor = DamageColor;
+			if (bIsHeadshot)
+			{
+				AppliedDamage *= HeadshotDamageMultiplier;
+				FinalDamageColor = HeadshotDamageColor;
+				UE_LOG(LogTemp, Log, TEXT("爆头！伤害: %.2f (基础伤害 %.2f x %.2f)"), AppliedDamage, DamageAmount, HeadshotDamageMultiplier);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("子弹命中触发扣血"));
+			}
+
 			HealthComp->ApplyDamage(AppliedDamage, OwnerController);
 
 			if (OwnerController && OwnerController->IsLocalController())
@@ -71,7 +95,7 @@ void UProjectileHitEffectComponent::HandleOwnerHit(AActor* SelfActor, AActor* Ot
 			}
 			else if (AFPSPlayerState* OwnerPS = OwnerPawn ? Cast<AFPSPlayerState>(OwnerPawn->GetPlayerState()) : nullptr)
 			{
-				OwnerPS->ClientShowDamageNumber(OtherActor, -AppliedDamage, DamageColor, DamageEffectClass);
+				OwnerPS->ClientShowDamageNumber(OtherActor, -AppliedDamage, FinalDamageColor, DamageEffectClass);
 			}
 
 			PlayHitSoundForOwner(OwnerController);
@@ -146,9 +170,12 @@ void UProjectileHitEffectComponent::SpawnDamageEffectLocal(AController* OwnerCon
 		return;
 	}
 
+	// 根据伤害值判断是否爆头，使用对应颜色
+	FLinearColor FinalColor = (FMath::Abs(Damage) > DamageAmount * 1.5f) ? HeadshotDamageColor : DamageColor;
+	
 	if (EffectActor->GetClass()->ImplementsInterface(UDamageEffectInterface::StaticClass()))
 	{
-		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, Damage, DamageColor);
+		IDamageEffectInterface::Execute_InitDamageEffect(EffectActor, Damage, FinalColor);
 	}
 }
 
