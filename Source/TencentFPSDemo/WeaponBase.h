@@ -42,6 +42,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipToPawn(APawn* InPawn);
 
+	/** 检测当前是否有子弹（CurrentAmmo > 0） */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weapon|Ammo")
+	bool HasAmmo() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

@@ -601,6 +601,11 @@ bool AWeaponBase::CanFire() const
 	return !bIsReloading && CurrentAmmo > 0;
 }
 
+bool AWeaponBase::HasAmmo() const
+{
+	return CurrentAmmo > 0;
+}
+
 float AWeaponBase::GetFireInterval() const
 {
 	return FireRate > 0.0f ? (1.0f / FireRate) : 0.0f;
